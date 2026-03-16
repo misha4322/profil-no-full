@@ -3,38 +3,25 @@ import { and, eq, inArray, or } from "drizzle-orm";
 import { db } from "../db";
 import { friendships, users } from "../db/schema";
 
-function isFriendCode(value: string) {
-  return /^\d{4}-\d{4}$/i.test(value.trim());
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
-async function findTarget(body: { targetId?: string; code?: string }) {
-  if (body.targetId) {
-    return await db.query.users.findFirst({
-      where: eq(users.id, body.targetId),
-      columns: {
-        id: true,
-        username: true,
-        avatarUrl: true,
-        friendCode: true,
-        isProfilePrivate: true,
-      },
-    });
-  }
+async function findTarget(body: { targetId?: string }) {
+  if (!body.targetId) return null;
 
-  if (body.code && isFriendCode(body.code)) {
-    return await db.query.users.findFirst({
-      where: eq(users.friendCode, body.code.trim().toUpperCase()),
-      columns: {
-        id: true,
-        username: true,
-        avatarUrl: true,
-        friendCode: true,
-        isProfilePrivate: true,
-      },
-    });
-  }
+  const rows = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      avatarUrl: users.avatarUrl,
+    })
+    .from(users)
+    .where(eq(users.id, body.targetId))
+    .limit(1);
 
-  return null;
+  return rows[0] ?? null;
 }
 
 export const friendsRouter = new Elysia({ prefix: "/friends" })
@@ -42,80 +29,107 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
   .post(
     "/request",
     async ({ body, set }) => {
-      const userId = body.userId;
-      const target = await findTarget(body);
+      try {
+        const userId = body.userId;
+        const target = await findTarget(body);
 
-      if (!target) {
-        set.status = 404;
-        return { error: "Пользователь не найден" };
-      }
+        if (!target) {
+          set.status = 404;
+          return { error: "Пользователь не найден" };
+        }
 
-      if (userId === target.id) {
-        set.status = 400;
-        return { error: "Нельзя добавить себя" };
-      }
+        if (userId === target.id) {
+          set.status = 400;
+          return { error: "Нельзя добавить себя" };
+        }
 
-      const accepted = await db.query.friendships.findFirst({
-        where: and(
-          eq(friendships.status, "accepted"),
-          or(
-            and(eq(friendships.requesterId, userId), eq(friendships.addresseeId, target.id)),
-            and(eq(friendships.requesterId, target.id), eq(friendships.addresseeId, userId))
+        const acceptedRows = await db
+          .select({ id: friendships.id })
+          .from(friendships)
+          .where(
+            and(
+              eq(friendships.status, "accepted"),
+              or(
+                and(
+                  eq(friendships.requesterId, userId),
+                  eq(friendships.addresseeId, target.id)
+                ),
+                and(
+                  eq(friendships.requesterId, target.id),
+                  eq(friendships.addresseeId, userId)
+                )
+              )
+            )
           )
-        ),
-        columns: { id: true },
-      });
+          .limit(1);
 
-      if (accepted) {
-        return { success: true, status: "accepted", target };
-      }
+        if (acceptedRows[0]) {
+          return { success: true, status: "accepted", target };
+        }
 
-      const incoming = await db.query.friendships.findFirst({
-        where: and(
-          eq(friendships.requesterId, target.id),
-          eq(friendships.addresseeId, userId),
-          eq(friendships.status, "pending")
-        ),
-        columns: { id: true },
-      });
+        const incomingRows = await db
+          .select({ id: friendships.id })
+          .from(friendships)
+          .where(
+            and(
+              eq(friendships.requesterId, target.id),
+              eq(friendships.addresseeId, userId),
+              eq(friendships.status, "pending")
+            )
+          )
+          .limit(1);
 
-      if (incoming) {
+        if (incomingRows[0]) {
+          return {
+            success: true,
+            status: "incoming",
+            message:
+              "У тебя уже есть входящая заявка от этого пользователя. Нажми «Принять».",
+            target,
+          };
+        }
+
+        const outgoingRows = await db
+          .select({ id: friendships.id })
+          .from(friendships)
+          .where(
+            and(
+              eq(friendships.requesterId, userId),
+              eq(friendships.addresseeId, target.id),
+              eq(friendships.status, "pending")
+            )
+          )
+          .limit(1);
+
+        if (outgoingRows[0]) {
+          return { success: true, status: "pending", target };
+        }
+
+        await db.insert(friendships).values({
+          requesterId: userId,
+          addresseeId: target.id,
+          status: "pending",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        return { success: true, status: "pending", target };
+      } catch (error: unknown) {
+        console.error("POST /api/friends/request error:", error);
+        set.status = 500;
         return {
-          success: true,
-          status: "incoming",
-          message: "У тебя уже есть входящая заявка от этого пользователя. Нажми «Принять».",
-          target,
+          error: "Internal Server Error",
+          details:
+            process.env.NODE_ENV === "development"
+              ? getErrorMessage(error)
+              : undefined,
         };
       }
-
-      const outgoing = await db.query.friendships.findFirst({
-        where: and(
-          eq(friendships.requesterId, userId),
-          eq(friendships.addresseeId, target.id),
-          eq(friendships.status, "pending")
-        ),
-        columns: { id: true },
-      });
-
-      if (outgoing) {
-        return { success: true, status: "pending", target };
-      }
-
-      await db.insert(friendships).values({
-        requesterId: userId,
-        addresseeId: target.id,
-        status: "pending",
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      return { success: true, status: "pending", target };
     },
     {
       body: t.Object({
         userId: t.String(),
-        targetId: t.Optional(t.String()),
-        code: t.Optional(t.String()),
+        targetId: t.String(),
       }),
     }
   )
@@ -123,26 +137,43 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
   .post(
     "/accept",
     async ({ body, set }) => {
-      const row = await db.query.friendships.findFirst({
-        where: and(
-          eq(friendships.requesterId, body.requesterId),
-          eq(friendships.addresseeId, body.userId),
-          eq(friendships.status, "pending")
-        ),
-        columns: { id: true },
-      });
+      try {
+        const rows = await db
+          .select({ id: friendships.id })
+          .from(friendships)
+          .where(
+            and(
+              eq(friendships.requesterId, body.requesterId),
+              eq(friendships.addresseeId, body.userId),
+              eq(friendships.status, "pending")
+            )
+          )
+          .limit(1);
 
-      if (!row) {
-        set.status = 404;
-        return { error: "Заявка не найдена" };
+        const row = rows[0];
+
+        if (!row) {
+          set.status = 404;
+          return { error: "Заявка не найдена" };
+        }
+
+        await db
+          .update(friendships)
+          .set({ status: "accepted", updatedAt: new Date() })
+          .where(eq(friendships.id, row.id));
+
+        return { success: true, status: "accepted" };
+      } catch (error: unknown) {
+        console.error("POST /api/friends/accept error:", error);
+        set.status = 500;
+        return {
+          error: "Internal Server Error",
+          details:
+            process.env.NODE_ENV === "development"
+              ? getErrorMessage(error)
+              : undefined,
+        };
       }
-
-      await db
-        .update(friendships)
-        .set({ status: "accepted", updatedAt: new Date() })
-        .where(eq(friendships.id, row.id));
-
-      return { success: true, status: "accepted" };
     },
     {
       body: t.Object({
@@ -154,15 +185,33 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
 
   .post(
     "/remove",
-    async ({ body }) => {
-      await db.delete(friendships).where(
-        or(
-          and(eq(friendships.requesterId, body.userId), eq(friendships.addresseeId, body.targetId)),
-          and(eq(friendships.requesterId, body.targetId), eq(friendships.addresseeId, body.userId))
-        )
-      );
+    async ({ body, set }) => {
+      try {
+        await db.delete(friendships).where(
+          or(
+            and(
+              eq(friendships.requesterId, body.userId),
+              eq(friendships.addresseeId, body.targetId)
+            ),
+            and(
+              eq(friendships.requesterId, body.targetId),
+              eq(friendships.addresseeId, body.userId)
+            )
+          )
+        );
 
-      return { success: true };
+        return { success: true };
+      } catch (error: unknown) {
+        console.error("POST /api/friends/remove error:", error);
+        set.status = 500;
+        return {
+          error: "Internal Server Error",
+          details:
+            process.env.NODE_ENV === "development"
+              ? getErrorMessage(error)
+              : undefined,
+        };
+      }
     },
     {
       body: t.Object({
@@ -172,73 +221,100 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
     }
   )
 
-  .get("/requests/:userId", async ({ params }) => {
-    const rows = await db.query.friendships.findMany({
-      where: and(
-        eq(friendships.addresseeId, params.userId),
-        eq(friendships.status, "pending")
-      ),
-      columns: {
-        requesterId: true,
-        createdAt: true,
-      },
-    });
+  .get("/requests/:userId", async ({ params, set }) => {
+    try {
+      const rows = await db
+        .select({
+          requesterId: friendships.requesterId,
+          createdAt: friendships.createdAt,
+        })
+        .from(friendships)
+        .where(
+          and(
+            eq(friendships.addresseeId, params.userId),
+            eq(friendships.status, "pending")
+          )
+        );
 
-    const ids = rows.map((row) => row.requesterId);
+      const ids = rows.map((row) => row.requesterId);
 
-    if (!ids.length) {
-      return { requests: [] };
+      if (!ids.length) {
+        return { requests: [] };
+      }
+
+      const requestUsers = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatarUrl: users.avatarUrl,
+        })
+        .from(users)
+        .where(inArray(users.id, ids));
+
+      return {
+        requests: rows.map((row) => ({
+          from: requestUsers.find((user) => user.id === row.requesterId) ?? null,
+          createdAt: row.createdAt?.toISOString?.() ?? row.createdAt,
+        })).filter((row) => row.from !== null),
+      };
+    } catch (error: unknown) {
+      console.error("GET /api/friends/requests/:userId error:", error);
+      set.status = 500;
+      return {
+        error: "Internal Server Error",
+        details:
+          process.env.NODE_ENV === "development"
+            ? getErrorMessage(error)
+            : undefined,
+      };
     }
-
-    const requestUsers = await db.query.users.findMany({
-      where: inArray(users.id, ids),
-      columns: {
-        id: true,
-        username: true,
-        avatarUrl: true,
-        friendCode: true,
-        isProfilePrivate: true,
-      },
-    });
-
-    return {
-      requests: rows.map((row) => ({
-        from: requestUsers.find((user) => user.id === row.requesterId)!,
-        createdAt: row.createdAt?.toISOString?.() ?? row.createdAt,
-      })),
-    };
   })
 
-  .get("/list/:userId", async ({ params }) => {
-    const rows = await db.query.friendships.findMany({
-      where: and(
-        eq(friendships.status, "accepted"),
-        or(eq(friendships.requesterId, params.userId), eq(friendships.addresseeId, params.userId))
-      ),
-      columns: {
-        requesterId: true,
-        addresseeId: true,
-      },
-    });
+  .get("/list/:userId", async ({ params, set }) => {
+    try {
+      const rows = await db
+        .select({
+          requesterId: friendships.requesterId,
+          addresseeId: friendships.addresseeId,
+        })
+        .from(friendships)
+        .where(
+          and(
+            eq(friendships.status, "accepted"),
+            or(
+              eq(friendships.requesterId, params.userId),
+              eq(friendships.addresseeId, params.userId)
+            )
+          )
+        );
 
-    const friendIds = rows.map((row) =>
-      row.requesterId === params.userId ? row.addresseeId : row.requesterId
-    );
+      const friendIds = rows.map((row) =>
+        row.requesterId === params.userId ? row.addresseeId : row.requesterId
+      );
 
-    if (!friendIds.length) {
-      return { friends: [] };
+      if (!friendIds.length) {
+        return { friends: [] };
+      }
+
+      const list = await db
+        .select({
+          id: users.id,
+          username: users.username,
+          avatarUrl: users.avatarUrl,
+        })
+        .from(users)
+        .where(inArray(users.id, friendIds));
+
+      return { friends: list };
+    } catch (error: unknown) {
+      console.error("GET /api/friends/list/:userId error:", error);
+      set.status = 500;
+      return {
+        error: "Internal Server Error",
+        details:
+          process.env.NODE_ENV === "development"
+            ? getErrorMessage(error)
+            : undefined,
+      };
     }
-
-    const list = await db.query.users.findMany({
-      where: inArray(users.id, friendIds),
-      columns: {
-        id: true,
-        username: true,
-        avatarUrl: true,
-        friendCode: true,
-        isProfilePrivate: true,
-      },
-    });
-
-    return { friends: list };
   });

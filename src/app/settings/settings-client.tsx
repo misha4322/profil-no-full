@@ -21,8 +21,6 @@ export default function SettingsClient({ userId }: { userId: string }) {
 
   const [username, setUsername] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [friendCode, setFriendCode] = useState<string | null>(null);
-  const [isProfilePrivate, setIsProfilePrivate] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -40,8 +38,6 @@ export default function SettingsClient({ userId }: { userId: string }) {
 
         setUsername(json.user.username ?? "");
         setAvatarUrl(json.user.avatarUrl ?? null);
-        setFriendCode(json.user.friendCode ?? null);
-        setIsProfilePrivate(!!json.user.isProfilePrivate);
       } catch (error: any) {
         setMessage(error?.message || "Ошибка загрузки");
       } finally {
@@ -99,7 +95,6 @@ export default function SettingsClient({ userId }: { userId: string }) {
           userId,
           username,
           avatarUrl,
-          isProfilePrivate,
         }),
       });
 
@@ -117,29 +112,6 @@ export default function SettingsClient({ userId }: { userId: string }) {
     }
   }
 
-  async function regenerateFriendCode() {
-    try {
-      setMessage("");
-
-      const res = await fetch("/api/users/me/friend-code/regenerate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка генерации кода");
-      }
-
-      setFriendCode(json.friendCode ?? null);
-      setMessage("Новый код друга создан ✅");
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка генерации кода");
-    }
-  }
-
   if (loading) {
     return (
       <div className={styles.page}>
@@ -154,9 +126,7 @@ export default function SettingsClient({ userId }: { userId: string }) {
         <div className={styles.header}>
           <div>
             <h1 className={styles.title}>Настройки профиля</h1>
-            <p className={styles.subtitle}>
-              Здесь меняются только рабочие поля, которые реально сохраняются через Elysia.
-            </p>
+            <p className={styles.subtitle}>Рабочие настройки профиля через Elysia.</p>
           </div>
 
           <Link href="/profile" className={styles.backButton}>
@@ -238,36 +208,6 @@ export default function SettingsClient({ userId }: { userId: string }) {
                 className={styles.input}
                 placeholder="Например: MishNef"
               />
-            </div>
-
-            <div className={styles.checkboxRow}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={isProfilePrivate}
-                  onChange={(e) => setIsProfilePrivate(e.target.checked)}
-                />
-                <span>Сделать профиль приватным</span>
-              </label>
-            </div>
-
-            <div className={styles.field}>
-              <label className={styles.label}>Код друга</label>
-              <div className={styles.codeRow}>
-                <input
-                  value={friendCode ?? ""}
-                  readOnly
-                  className={styles.input}
-                  placeholder="Код будет создан автоматически"
-                />
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={regenerateFriendCode}
-                >
-                  Обновить код
-                </button>
-              </div>
             </div>
           </div>
         </div>

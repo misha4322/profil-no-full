@@ -10,10 +10,6 @@ function isUuid(value: string) {
   );
 }
 
-function isFriendCode(value: string) {
-  return /^\d{4}-\d{4}$/i.test(value.trim());
-}
-
 async function readJsonSafe(res: Response) {
   const text = await res.text();
 
@@ -98,25 +94,19 @@ export default function FriendsClient({ userId }: { userId: string }) {
 
       const value = directValue.trim();
       if (!value) {
-        setMessage("Введи UUID или код друга");
+        setMessage("Введи UUID пользователя");
         return;
       }
 
-      const body: Record<string, string> = { userId };
-
-      if (isUuid(value)) {
-        body.targetId = value;
-      } else if (isFriendCode(value)) {
-        body.code = value.toUpperCase();
-      } else {
-        setMessage("Поддерживается UUID или код вида 1234-5678");
+      if (!isUuid(value)) {
+        setMessage("Здесь поддерживается только UUID пользователя");
         return;
       }
 
       const res = await fetch("/api/friends/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ userId, targetId: value }),
       });
 
       const json = await readJsonSafe(res);
@@ -234,7 +224,7 @@ export default function FriendsClient({ userId }: { userId: string }) {
           <div>
             <h1 className={styles.title}>Друзья и поиск людей</h1>
             <p className={styles.subtitle}>
-              Ищи человека по нику, UUID или коду друга.
+              Ищи человека по нику или UUID.
             </p>
           </div>
 
@@ -243,11 +233,10 @@ export default function FriendsClient({ userId }: { userId: string }) {
           </Link>
         </div>
 
-        {me?.friendCode ? (
+        {me?.id ? (
           <div className={styles.codeCard}>
-            <div className={styles.codeLabel}>Твой код друга</div>
-            <div className={styles.codeValue}>{me.friendCode}</div>
-            <div className={styles.codeSub}>UUID: {me.id}</div>
+            <div className={styles.codeLabel}>Твой UUID</div>
+            <div className={styles.codeValue}>{me.id}</div>
           </div>
         ) : null}
 
@@ -260,7 +249,7 @@ export default function FriendsClient({ userId }: { userId: string }) {
                 value={directValue}
                 onChange={(e) => setDirectValue(e.target.value)}
                 className={styles.input}
-                placeholder="UUID или код 1234-5678"
+                placeholder="UUID пользователя"
               />
               <button type="button" className={styles.primaryButton} onClick={sendDirectRequest}>
                 Добавить
@@ -276,7 +265,7 @@ export default function FriendsClient({ userId }: { userId: string }) {
                 value={searchValue}
                 onChange={(e) => setSearchValue(e.target.value)}
                 className={styles.input}
-                placeholder="Ник, UUID или код друга"
+                placeholder="Ник или UUID"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     void searchUsers();
@@ -316,12 +305,6 @@ export default function FriendsClient({ userId }: { userId: string }) {
                           {user.username}
                         </Link>
                         <div className={styles.userMeta}>ID: {user.id}</div>
-                        {user.friendCode ? (
-                          <div className={styles.userMeta}>Код: {user.friendCode}</div>
-                        ) : null}
-                        <div className={styles.userMeta}>
-                          {user.isProfilePrivate ? "Профиль закрыт" : "Профиль открыт"}
-                        </div>
                       </div>
                     </div>
 
@@ -410,9 +393,6 @@ export default function FriendsClient({ userId }: { userId: string }) {
                           {friend.username}
                         </Link>
                         <div className={styles.userMeta}>ID: {friend.id}</div>
-                        {friend.friendCode ? (
-                          <div className={styles.userMeta}>Код: {friend.friendCode}</div>
-                        ) : null}
                       </div>
 
                       <button
