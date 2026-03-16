@@ -1,0 +1,14 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "../api/auth/[...nextauth]/route";
+import { redirect } from "next/navigation";
+import ProfileClient from "./ProfileClient";
+
+export default async function ProfilePage() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id) {
+    redirect("/auth/login");
+  }
+
+  return <ProfileClient userId={session.user.id} />;
+}

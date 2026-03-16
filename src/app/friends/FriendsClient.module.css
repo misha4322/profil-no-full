@@ -1,0 +1,256 @@
+.page {
+  min-height: 100vh;
+  padding: 32px 16px;
+  color: #fff;
+}
+
+.card {
+  max-width: 1180px;
+  margin: 0 auto;
+  border-radius: 28px;
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(17, 18, 28, 0.88);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+}
+
+.box {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.title {
+  margin: 0;
+  font-size: 32px;
+}
+
+.subtitle {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 16px;
+  text-decoration: none;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.codeCard {
+  margin-bottom: 20px;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(124, 58, 237, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+}
+
+.codeLabel {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.codeValue {
+  margin-top: 8px;
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.codeSub {
+  margin-top: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.topGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.mainGrid {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 18px;
+}
+
+.sideColumn {
+  display: grid;
+  gap: 18px;
+}
+
+.section {
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sectionTitle {
+  margin: 0 0 14px;
+  font-size: 22px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.input {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  padding: 0 14px;
+  outline: none;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.disabledButton {
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.primaryButton {
+  border: none;
+  background: #7c3aed;
+  color: #fff;
+}
+
+.primaryButton:hover {
+  background: #6d28d9;
+}
+
+.secondaryButton {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.dangerButton {
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  background: rgba(220, 38, 38, 0.12);
+  color: #fecaca;
+}
+
+.disabledButton {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.45);
+  cursor: not-allowed;
+}
+
+.message,
+.empty {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.message {
+  margin-top: 18px;
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.userCard,
+.smallCard {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.userInfo {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+}
+
+.userAvatar,
+.userAvatarPlaceholder {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.userAvatarPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 800;
+}
+
+.userName {
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.userMeta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.userActions {
+  flex-shrink: 0;
+}
+
+@media (max-width: 1000px) {
+  .topGrid,
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .header,
+  .userCard,
+  .smallCard {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
