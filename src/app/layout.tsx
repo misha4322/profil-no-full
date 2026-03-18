@@ -11,7 +11,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "GameHelp",
-  description: "GameHelp — игровое сообщество: посты, обсуждения, друзья и сообщения.",
+  description: "GameHelp — сообщество для обсуждения игр, постов, друзей и сообщений.",
 };
 
 export default async function RootLayout({
@@ -22,7 +22,7 @@ export default async function RootLayout({
   const session = await getServerSession(authOptions);
 
   return (
-    <html lang="ru">
+    <html lang="ru" data-scroll-behavior="smooth">
       <body className={inter.className}>
         <div className="app-bg" />
         <Navbar session={session} />

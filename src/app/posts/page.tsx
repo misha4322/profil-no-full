@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 
+import styles from "./PosPage.module.css";
+
 type PostCard = {
   id: string;
   slug: string;
@@ -8,9 +10,16 @@ type PostCard = {
   content: string;
   createdAt: string | null;
   coverImage?: string | null;
-  author: { username: string; avatarUrl?: string | null };
-  category: { title: string } | null;
-  tags: { id: string; name: string }[];
+  author?: {
+    id?: string;
+    username?: string | null;
+    avatarUrl?: string | null;
+  };
+  category?: {
+    id?: string;
+    title?: string | null;
+  } | null;
+  tags?: { id: string; name: string }[];
 };
 
 async function getBaseUrl() {
@@ -19,6 +28,7 @@ async function getBaseUrl() {
   const proto =
     h.get("x-forwarded-proto") ??
     (process.env.NODE_ENV === "development" ? "http" : "https");
+
   return `${proto}://${host}`;
 }
 
@@ -28,11 +38,11 @@ async function getPosts(): Promise<PostCard[]> {
 
   if (!res.ok) return [];
 
-  const data = await res.json();
-  return data.posts ?? [];
+  const data = await res.json().catch(() => null);
+  return Array.isArray(data?.posts) ? data.posts : [];
 }
 
-function getExcerpt(text: string, max = 200) {
+function getExcerpt(text: string, max = 170) {
   if (!text) return "";
   return text.length > max ? `${text.slice(0, max).trim()}…` : text;
 }
@@ -41,61 +51,61 @@ export default async function PostsPage() {
   const posts = await getPosts();
 
   return (
-    <div className="posts-page">
+    <div className={styles.page}>
       <div className="container">
-        <div className="posts-header">
+        <div className={styles.header}>
           <div>
-            <h1 className="posts-title">Форум GameHelp</h1>
-            <div className="posts-subtitle">
-              Все обсуждения, вопросы, обзоры и игровые посты в одном месте.
-            </div>
+            <div className={styles.kicker}>GameHelp</div>
+            <h1 className={styles.title}>Сообщество</h1>
+            <p className={styles.subtitle}>
+              Форум, обсуждения, обзоры, игровые вопросы и общение с другими игроками.
+            </p>
           </div>
 
-          <div className="posts-actions">
-            <Link href="/" className="posts-action-link">
+          <div className={styles.actions}>
+            <Link href="/" className={styles.secondaryButton}>
               Главная
             </Link>
-            <Link href="/posts/new" className="posts-action-link primary">
+            <Link href="/posts/new" className={styles.primaryButton}>
               + Создать пост
             </Link>
           </div>
         </div>
 
         {posts.length === 0 ? (
-          <div className="posts-empty">
+          <div className={styles.empty}>
             Пока нет постов. <Link href="/posts/new">Создать первую тему</Link>
           </div>
         ) : (
-          <div className="posts-grid">
+          <div className={styles.grid}>
             {posts.map((post) => (
-              <Link key={post.id} href={`/posts/${post.slug}`} className="post-card">
+              <Link key={post.id} href={`/posts/${post.slug}`} className={styles.card}>
                 {post.coverImage ? (
                   <img
                     src={post.coverImage}
                     alt={post.title}
-                    className="post-card-cover"
+                    className={styles.cover}
                   />
                 ) : (
-                  <div className="post-card-cover placeholder">🎮</div>
+                  <div className={styles.coverPlaceholder}>🎮</div>
                 )}
 
-                <div className="post-card-body">
-                  <div className="post-card-title">{post.title}</div>
-
-                  <div className="post-card-meta">
-                    {post.author.username}
-                    {post.category ? ` • ${post.category.title}` : ""}
+                <div className={styles.cardBody}>
+                  <div className={styles.cardMeta}>
+                    {post.author?.username ?? "Пользователь"}
+                    {post.category?.title ? ` • ${post.category.title}` : ""}
                     {post.createdAt
                       ? ` • ${new Date(post.createdAt).toLocaleDateString("ru-RU")}`
                       : ""}
                   </div>
 
-                  <div className="post-card-excerpt">{getExcerpt(post.content)}</div>
+                  <div className={styles.cardTitle}>{post.title}</div>
+                  <div className={styles.cardExcerpt}>{getExcerpt(post.content)}</div>
 
                   {post.tags?.length ? (
-                    <div className="post-card-tags">
+                    <div className={styles.tags}>
                       {post.tags.slice(0, 5).map((tag) => (
-                        <span key={tag.id} className="post-card-tag">
+                        <span key={tag.id} className={styles.tag}>
                           #{tag.name}
                         </span>
                       ))}

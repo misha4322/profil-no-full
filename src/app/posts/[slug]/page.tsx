@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+
 import Comments from "@/app/auth/components/Comments";
 import PostReactions from "@/app/auth/components/PostReactions";
 import SharePostButton from "@/app/posts/SharePostButton";
+
+import styles from "./PosPage.module.css";
 
 async function getBaseUrl() {
   const h = await headers();
@@ -17,6 +20,7 @@ async function getBaseUrl() {
 
 async function getPost(slug: string) {
   const base = await getBaseUrl();
+
   const res = await fetch(`${base}/api/posts/${encodeURIComponent(slug)}`, {
     cache: "no-store",
   });
@@ -26,6 +30,8 @@ async function getPost(slug: string) {
   }
 
   if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    console.error("Post page fetch failed:", res.status, text);
     throw new Error("Failed to load post");
   }
 
@@ -51,119 +57,149 @@ export default async function PostPage(props: {
   const authorHref = post.author?.id ? `/u/${post.author.id}` : null;
 
   return (
-    <div className="post-page">
-      <div className="container post-layout">
-        <div className="post-main">
-          <div className="post-navigation">
-            <Link href="/posts" className="post-nav-link">
-              ← К постам
-            </Link>
-            <Link href="/" className="post-nav-link">
-              Главная
-            </Link>
+    <div className={styles.page}>
+      <div className="container">
+        <div className={styles.layout}>
+          <div className={styles.main}>
+            <div className={styles.navigation}>
+              <Link href="/posts" className={styles.navLink}>
+                ← К сообществу
+              </Link>
+              <Link href="/" className={styles.navLink}>
+                Главная
+              </Link>
+            </div>
+
+            <article className={styles.heroCard}>
+              {post.coverImage ? (
+                <img
+                  src={post.coverImage}
+                  alt={post.title ?? "Обложка поста"}
+                  className={styles.cover}
+                />
+              ) : (
+                <div className={styles.coverPlaceholder}>🎮</div>
+              )}
+
+              <div className={styles.heroBody}>
+                <h1 className={styles.title}>{post.title}</h1>
+
+                <div className={styles.meta}>
+                  <span className={styles.metaItem}>
+                    Автор:{" "}
+                    {authorHref ? (
+                      <Link href={authorHref} className={styles.authorLink}>
+                        {post.author?.username ?? "Пользователь"}
+                      </Link>
+                    ) : (
+                      <span>{post.author?.username ?? "Пользователь"}</span>
+                    )}
+                  </span>
+
+                  {post.category ? (
+                    <span className={styles.metaItem}>
+                      Игра: {post.category.title}
+                    </span>
+                  ) : null}
+
+                  {post.createdAt ? (
+                    <span className={styles.metaItem}>
+                      Опубликовано:{" "}
+                      {new Date(post.createdAt).toLocaleString("ru-RU")}
+                    </span>
+                  ) : null}
+                </div>
+
+                {post.tags?.length ? (
+                  <div className={styles.tags}>
+                    {post.tags.map((tag: any) => (
+                      <span key={tag.id} className={styles.tag}>
+                        #{tag.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className={styles.actions}>
+                  <PostReactions
+                    slug={slug}
+                    likeCount={Number(post.likeCount) || 0}
+                    dislikeCount={Number(post.dislikeCount) || 0}
+                    likedByMe={!!post.likedByMe}
+                    dislikedByMe={!!post.dislikedByMe}
+                  />
+
+                  <SharePostButton postId={post.id} title={post.title} />
+                </div>
+              </div>
+            </article>
+
+            <section className={styles.contentCard}>
+              <div className={styles.content}>{post.content}</div>
+            </section>
+
+            <Comments postSlug={slug} />
           </div>
 
-          <article className="post-hero-card">
-            {post.coverImage ? (
-              <img
-                src={post.coverImage}
-                alt={post.title ?? "Обложка поста"}
-                className="post-cover"
-              />
-            ) : null}
+          <aside className={styles.sidebar}>
+            <div className={styles.sideCard}>
+              <h2 className={styles.sideTitle}>О публикации</h2>
 
-            <div className="post-hero-body">
-              <h1 className="post-title">{post.title}</h1>
+              <div className={styles.sideList}>
+                <div className={styles.sideItem}>
+                  <span>👍 Лайков</span>
+                  <strong>{Number(post.likeCount) || 0}</strong>
+                </div>
 
-              <div className="post-meta">
-                <span>
-                  Автор:{" "}
+                <div className={styles.sideItem}>
+                  <span>👎 Дизлайков</span>
+                  <strong>{Number(post.dislikeCount) || 0}</strong>
+                </div>
+
+                <div className={styles.sideItem}>
+                  <span>🏷️ Тегов</span>
+                  <strong>{Array.isArray(post.tags) ? post.tags.length : 0}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.sideCard}>
+              <h2 className={styles.sideTitle}>Автор</h2>
+
+              <div className={styles.authorCard}>
+                {post.author?.avatarUrl ? (
+                  <img
+                    src={post.author.avatarUrl}
+                    alt={post.author.username ?? "Автор"}
+                    className={styles.authorAvatar}
+                  />
+                ) : (
+                  <div className={styles.authorAvatarPlaceholder}>
+                    {(post.author?.username?.[0] ?? "U").toUpperCase()}
+                  </div>
+                )}
+
+                <div className={styles.authorInfo}>
                   {authorHref ? (
-                    <Link href={authorHref} className="post-author-link">
+                    <Link href={authorHref} className={styles.authorName}>
                       {post.author?.username ?? "Пользователь"}
                     </Link>
                   ) : (
-                    <span>{post.author?.username ?? "Пользователь"}</span>
+                    <div className={styles.authorName}>
+                      {post.author?.username ?? "Пользователь"}
+                    </div>
                   )}
-                </span>
 
-                {post.category ? <span>Игра: {post.category.title}</span> : null}
-
-                {post.createdAt ? (
-                  <span>
-                    Опубликовано: {new Date(post.createdAt).toLocaleString("ru-RU")}
-                  </span>
-                ) : null}
-              </div>
-
-              {post.tags?.length ? (
-                <div className="post-tags">
-                  {post.tags.map((tag: any) => (
-                    <span key={tag.id} className="post-tag">
-                      #{tag.name}
-                    </span>
-                  ))}
+                  {post.category ? (
+                    <div className={styles.authorMeta}>
+                      Категория: {post.category.title}
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-
-              <div className="post-action-row">
-                <PostReactions
-                  slug={slug}
-                  likeCount={Number(post.likeCount) || 0}
-                  dislikeCount={Number(post.dislikeCount) || 0}
-                  likedByMe={!!post.likedByMe}
-                  dislikedByMe={!!post.dislikedByMe}
-                />
-
-                <SharePostButton postId={post.id} title={post.title} />
               </div>
             </div>
-          </article>
-
-          <section className="post-content-card">
-            <div className="post-content">{post.content}</div>
-          </section>
-
-          <Comments postSlug={slug} />
+          </aside>
         </div>
-
-        <aside className="post-sidebar">
-          <div className="post-side-card">
-            <h2 className="post-side-title">О публикации</h2>
-
-            <div className="post-side-list">
-              <div className="post-side-item">
-                👍 Лайков: {Number(post.likeCount) || 0}
-              </div>
-              <div className="post-side-item">
-                👎 Дизлайков: {Number(post.dislikeCount) || 0}
-              </div>
-              <div className="post-side-item">
-                🏷️ Тегов: {Array.isArray(post.tags) ? post.tags.length : 0}
-              </div>
-            </div>
-          </div>
-
-          <div className="post-side-card">
-            <h2 className="post-side-title">Автор</h2>
-
-            <div className="post-side-list">
-              <div className="post-side-item">
-                {authorHref ? (
-                  <Link href={authorHref} className="post-author-link">
-                    {post.author?.username ?? "Пользователь"}
-                  </Link>
-                ) : (
-                  <span>{post.author?.username ?? "Пользователь"}</span>
-                )}
-              </div>
-
-              {post.category ? (
-                <div className="post-side-item">Категория: {post.category.title}</div>
-              ) : null}
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   );

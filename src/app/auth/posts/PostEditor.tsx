@@ -2,10 +2,27 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+
 import SteamGamePicker from "@/app/auth/components/SteamGamePicker";
 
-type Category = { id: string; title: string };
-type Tag = { id: string; name: string };
+import styles from "./PostEditor.module.css";
+
+type Category = {
+  id: string;
+  title: string;
+};
+
+type Tag = {
+  id: string;
+  name: string;
+};
+
+type SteamGame = {
+  appid: number;
+  name: string;
+  headerImage: string;
+  capsuleImage: string;
+};
 
 export default function PostEditor({
   categories,
@@ -15,25 +32,22 @@ export default function PostEditor({
   tags: Tag[];
 }) {
   const router = useRouter();
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [categoryId, setCategoryId] = useState<string>("");
+  const [categoryId, setCategoryId] = useState("");
   const [tagIds, setTagIds] = useState<string[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
-  const [coverUrl, setCoverUrl] = useState<string>("");
+  const [coverUrl, setCoverUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
-  const [error, setError] = useState<string>("");
-  
-  // Новое состояние для Steam игры
-  const [steamGame, setSteamGame] = useState<{
-    appid: number;
-    name: string;
-    headerImage: string;
-    capsuleImage: string;
-  } | null>(null);
+  const [error, setError] = useState("");
 
-  const canSubmit = useMemo(() => title.trim() && content.trim(), [title, content]);
+  const [steamGame, setSteamGame] = useState<SteamGame | null>(null);
+
+  const canSubmit = useMemo(() => {
+    return title.trim().length > 0 && content.trim().length > 0;
+  }, [title, content]);
 
   function toggleTag(id: string) {
     setTagIds((prev) =>
@@ -44,18 +58,24 @@ export default function PostEditor({
   async function uploadCover(file: File) {
     const fd = new FormData();
     fd.append("file", file);
+
     const res = await fetch("/api/upload", {
       method: "POST",
       body: fd,
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Upload failed");
-    // data.urls — массив, берём первый
-    return String(data.urls?.[0] || data.url);
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.error || "Ошибка загрузки обложки");
+    }
+
+    return String(data.urls?.[0] || data.url || "");
   }
 
   async function uploadImages(files: FileList | null) {
     if (!files || files.length === 0) return;
+
     setUploadingImages(true);
     setError("");
 
@@ -67,15 +87,21 @@ export default function PostEditor({
         method: "POST",
         body: fd,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
 
-      const urls = data.urls as string[];
-      if (urls && urls.length > 0) {
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || "Ошибка загрузки изображений");
+      }
+
+      const urls = Array.isArray(data.urls) ? data.urls : [];
+
+      if (urls.length > 0) {
         const markdownImages = urls
-          .map((url) => `![Подпись](${url})`)
+          .map((url: string) => `![Изображение](${url})`)
           .join("\n\n");
-        setContent((prev) => (prev ? prev + "\n\n" + markdownImages : markdownImages));
+
+        setContent((prev) => (prev ? `${prev}\n\n${markdownImages}` : markdownImages));
       }
     } catch (err: any) {
       setError(err.message || "Ошибка загрузки изображений");
@@ -85,42 +111,48 @@ export default function PostEditor({
   }
 
   async function submit() {
-    setError("");
     if (!canSubmit) return;
 
+    setError("");
     setIsLoading(true);
+
     try {
       let uploadedCover: string | null = null;
+
       if (coverFile) {
         uploadedCover = await uploadCover(coverFile);
         setCoverUrl(uploadedCover);
       }
 
-      // Формируем контент с учетом выбранной игры
-      let finalContent = content;
+      let finalContent = content.trim();
+
       if (steamGame) {
-        finalContent = `**🎮 ${steamGame.name}**\n\n${content}`;
+        finalContent = `**🎮 ${steamGame.name}**\n\n${finalContent}`;
       }
 
       const res = await fetch("/api/posts", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          title,
+          title: title.trim(),
           content: finalContent,
           categoryId: categoryId || null,
           tagIds,
           isPublished: true,
-          // Используем картинку Steam если нет загруженной обложки
           coverImage: uploadedCover || steamGame?.headerImage || null,
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        setError(data.error || "Ошибка создания поста");
-        setIsLoading(false);
-        return;
+        throw new Error(data.error || "Ошибка создания поста");
+      }
+
+      if (!data?.post?.slug) {
+        throw new Error("Сервер не вернул slug нового поста");
       }
 
       router.push(`/posts/${data.post.slug}`);
@@ -133,132 +165,154 @@ export default function PostEditor({
   }
 
   return (
-    <div className="space-y-5">
-      {error && (
-        <div className="p-3 rounded-lg bg-red-500/20 border border-red-500/40">
-          {error}
+    <div className={styles.editor}>
+      {error ? <div className={styles.error}>{error}</div> : null}
+
+      <div className={styles.grid}>
+        <div className={styles.mainColumn}>
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Основное</h2>
+
+            <div className={styles.field}>
+              <label className={styles.label}>Заголовок поста</label>
+              <input
+                className={styles.input}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Например: Лучшие настройки для CS2"
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label}>Текст поста</label>
+              <textarea
+                className={styles.textarea}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Опиши тему, вопрос, мнение или гайд..."
+              />
+            </div>
+
+            <div className={styles.uploadBlock}>
+              <label className={styles.uploadButton}>
+                <span>📷 Загрузить изображения в текст</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className={styles.hiddenInput}
+                  onChange={(e) => uploadImages(e.target.files)}
+                  disabled={uploadingImages}
+                />
+              </label>
+
+              {uploadingImages ? (
+                <span className={styles.uploadHint}>Загрузка изображений...</span>
+              ) : (
+                <span className={styles.uploadHint}>
+                  Они вставятся в текст в формате Markdown.
+                </span>
+              )}
+            </div>
+          </section>
         </div>
-      )}
 
-      <div>
-        <label className="text-sm text-gray-300">Заголовок</label>
-        <input
-          className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Например: Мой обзор на..."
-        />
-      </div>
+        <div className={styles.sideColumn}>
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Категория и теги</h2>
 
-      <div>
-        <label className="text-sm text-gray-300">Игра (категория)</label>
-        <select
-          className="mt-2 w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none"
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-        >
-          <option value="">— выбрать —</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Новый компонент выбора игры из Steam */}
-      <SteamGamePicker
-        selectedGame={steamGame}
-        onSelect={(game) => {
-          setSteamGame(game);
-          // Автоматически установим название игры как заголовок, если он пустой
-          if (game && !title.trim()) {
-            setTitle(game.name);
-          }
-        }}
-      />
-
-      <div>
-        <label className="text-sm text-gray-300">Темы (теги)</label>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {tags.map((t) => {
-            const active = tagIds.includes(t.id);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => toggleTag(t.id)}
-                className={[
-                  "text-xs px-3 py-2 rounded-xl border transition",
-                  active
-                    ? "bg-violet-600 border-violet-500"
-                    : "bg-white/5 border-white/10 hover:bg-white/10",
-                ].join(" ")}
+            <div className={styles.field}>
+              <label className={styles.label}>Игра / категория</label>
+              <select
+                className={styles.select}
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
               >
-                #{t.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                <option value="">— выбрать —</option>
+                {categories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-      <div>
-        <label className="text-sm text-gray-300">Обложка (картинка)</label>
-        <input
-          type="file"
-          accept="image/*"
-          className="mt-2 block w-full text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-600 file:text-white hover:file:bg-violet-700"
-          onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
-        />
-        {/* Показываем предпросмотр: загруженная обложка или картинка из Steam */}
-        {(coverUrl || steamGame?.headerImage) && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={coverUrl || steamGame?.headerImage}
-            alt="Предпросмотр обложки"
-            className="mt-3 rounded-xl max-h-64 object-cover border border-white/10"
-          />
-        )}
-      </div>
+            <div className={styles.field}>
+              <label className={styles.label}>Теги</label>
+              <div className={styles.tags}>
+                {tags.map((tag) => {
+                  const active = tagIds.includes(tag.id);
 
-      <div>
-        <label className="text-sm text-gray-300">Текст</label>
-        <textarea
-          className="mt-2 w-full min-h-[220px] rounded-xl bg-white/5 border border-white/10 px-4 py-3 outline-none"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="Пиши пост... Можно вставить изображения через кнопку ниже"
-        />
+                  return (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(tag.id)}
+                      className={`${styles.tagButton} ${active ? styles.tagButtonActive : ""}`}
+                    >
+                      #{tag.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
 
-        {/* Кнопка загрузки нескольких изображений */}
-        <div className="mt-3">
-          <label className="relative cursor-pointer bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium py-2 px-4 rounded-full transition">
-            <span>📷 Загрузить изображения</span>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              onChange={(e) => uploadImages(e.target.files)}
-              disabled={uploadingImages}
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Steam</h2>
+
+            <SteamGamePicker
+              selectedGame={steamGame}
+              onSelect={(game) => {
+                setSteamGame(game);
+
+                if (game && !title.trim()) {
+                  setTitle(game.name);
+                }
+              }}
             />
-          </label>
-          {uploadingImages && (
-            <span className="ml-3 text-gray-400 text-sm">Загрузка...</span>
-          )}
-          <p className="text-xs text-gray-500 mt-1">
-            Изображения будут вставлены в текст поста в формате Markdown. Вы можете редактировать подписи.
-          </p>
+          </section>
+
+          <section className={styles.section}>
+            <h2 className={styles.sectionTitle}>Обложка</h2>
+
+            <div className={styles.field}>
+              <label className={styles.label}>Загрузить свою картинку</label>
+              <input
+                type="file"
+                accept="image/*"
+                className={styles.fileInput}
+                onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+
+            {coverFile ? (
+              <div className={styles.uploadHint}>
+                Выбрано: <strong>{coverFile.name}</strong>
+              </div>
+            ) : null}
+
+            {coverUrl || steamGame?.headerImage ? (
+              <img
+                src={coverUrl || steamGame?.headerImage}
+                alt="Предпросмотр обложки"
+                className={styles.preview}
+              />
+            ) : (
+              <div className={styles.previewPlaceholder}>Обложка появится здесь</div>
+            )}
+          </section>
+
+          <button
+            type="button"
+            disabled={isLoading || !canSubmit}
+            onClick={submit}
+            className={styles.submitButton}
+          >
+            {isLoading ? "Публикация..." : "Опубликовать пост"}
+          </button>
         </div>
       </div>
-
-      <button
-        disabled={isLoading || !canSubmit}
-        onClick={submit}
-        className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50"
-      >
-        {isLoading ? "Создаю..." : "Опубликовать"}
-      </button>
     </div>
   );
 }
