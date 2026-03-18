@@ -1,10 +1,11 @@
-const API_PREFIX = "/api";
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
 
 type QueryValue = string | number | boolean | null | undefined;
 
 function buildUrl(path: string, query?: Record<string, QueryValue>) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const url = new URL(`${API_PREFIX}${normalizedPath}`, "http://localhost");
+  const url = new URL(`${API_URL}${normalizedPath}`);
 
   if (query) {
     for (const [key, value] of Object.entries(query)) {
@@ -13,16 +14,17 @@ function buildUrl(path: string, query?: Record<string, QueryValue>) {
     }
   }
 
-  return `${url.pathname}${url.search}`;
+  return url.toString();
 }
 
-export async function apiRequest<T = unknown>(
+export async function apiRequest<T = any>(
   path: string,
   init: RequestInit & {
     query?: Record<string, QueryValue>;
   } = {}
 ): Promise<T> {
   const { query, headers, body, ...rest } = init;
+
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   const response = await fetch(buildUrl(path, query), {
@@ -48,7 +50,9 @@ export async function apiRequest<T = unknown>(
 
   if (!response.ok) {
     throw new Error(
-      typeof data?.error === "string" ? data.error : `Ошибка запроса: ${response.status}`
+      typeof data?.error === "string"
+        ? data.error
+        : `Ошибка запроса: ${response.status}`
     );
   }
 

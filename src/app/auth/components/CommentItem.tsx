@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
-
 import "./CommentItem.css";
 
 export type CommentNode = {

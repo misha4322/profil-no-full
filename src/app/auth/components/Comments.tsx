@@ -68,7 +68,6 @@ export default function Comments({
       setError("Комментарий не может быть пустым");
       return;
     }
-
     if (!postSlug) {
       setError("Ошибка: slug поста не определён");
       return;
