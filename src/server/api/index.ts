@@ -8,6 +8,7 @@ import { forumRouter } from "./forum";
 import { authRouter } from "./auth";
 import { friendsRouter } from "./friends";
 import { usersRouter } from "./users";
+import { messagesRouter } from "./messages";
 
 export const app = new Elysia({
   adapter: node(),
@@ -23,6 +24,7 @@ export const app = new Elysia({
   .use(likesRouter)
   .use(forumRouter)
   .use(usersRouter)
-  .use(friendsRouter);
+  .use(friendsRouter)
+  .use(messagesRouter);
 
 export type App = typeof app;

@@ -27,7 +27,7 @@ export const users = pgTable(
     role: varchar("role", { length: 20 }).notNull().default("user"),
     avatarUrl: text("avatar_url"),
 
-    // профиль
+    // расширенный профиль
     profileBannerUrl: text("profile_banner_url"),
     statusText: varchar("status_text", { length: 120 }),
     bio: text("bio"),
@@ -43,7 +43,7 @@ export const users = pgTable(
     showFriendCode: boolean("show_friend_code").notNull().default(true),
 
     // дружба / приватность
-    friendCode: varchar("friend_code", { length: 9 }).unique(), // "1234-5678"
+    friendCode: varchar("friend_code", { length: 9 }).unique(),
     isProfilePrivate: boolean("is_profile_private").notNull().default(false),
 
     isBanned: boolean("is_banned").notNull().default(false),
@@ -109,9 +109,9 @@ export const categories = pgTable("categories", {
 export const posts = pgTable("posts", {
   id: uuid("id").defaultRandom().primaryKey(),
   authorId: uuid("author_id")
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
-  categoryId: uuid("category_id").references(() => categories.id),
+  categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
   title: varchar("title", { length: 200 }).notNull(),
   slug: varchar("slug", { length: 220 }).notNull().unique(),
   content: text("content").notNull(),
@@ -132,9 +132,11 @@ export const comments = pgTable("comments", {
     .references(() => posts.id, { onDelete: "cascade" })
     .notNull(),
   authorId: uuid("author_id")
-    .references(() => users.id)
+    .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
-  parentId: uuid("parent_id").references((): any => comments.id),
+  parentId: uuid("parent_id").references((): any => comments.id, {
+    onDelete: "cascade",
+  }),
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
@@ -176,7 +178,7 @@ export const commentLikes = pgTable(
       .references(() => users.id, { onDelete: "cascade" })
       .notNull(),
     type: text("type").$type<"like" | "dislike">().notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => ({
     commentUserUnique: uniqueIndex("comment_likes_comment_user_unique").on(
@@ -211,14 +213,87 @@ export const postTags = pgTable(
 );
 
 /* =========================
+   DIRECT CONVERSATIONS
+========================= */
+
+export const conversations = pgTable(
+  "conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+
+    type: varchar("type", { length: 16 })
+      .$type<"direct">()
+      .notNull()
+      .default("direct"),
+
+    directKey: varchar("direct_key", { length: 80 }).notNull(),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+  },
+  (t) => ({
+    directKeyUnique: uniqueIndex("conversations_direct_key_unique").on(t.directKey),
+  })
+);
+
+export const conversationMembers = pgTable(
+  "conversation_members",
+  {
+    conversationId: uuid("conversation_id")
+      .references(() => conversations.id, { onDelete: "cascade" })
+      .notNull(),
+
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.conversationId, t.userId] }),
+  })
+);
+
+export const messages = pgTable("messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  conversationId: uuid("conversation_id")
+    .references(() => conversations.id, { onDelete: "cascade" })
+    .notNull(),
+
+  senderId: uuid("sender_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+
+  type: varchar("type", { length: 20 })
+    .$type<"text" | "post_share">()
+    .notNull()
+    .default("text"),
+
+  content: text("content"),
+  sharedPostId: uuid("shared_post_id").references(() => posts.id, {
+    onDelete: "set null",
+  }),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+});
+
+/* =========================
    RELATIONS
 ========================= */
 
 export const usersRelations = relations(users, ({ many }) => ({
   posts: many(posts),
   comments: many(comments),
+
   friendRequestsSent: many(friendships, { relationName: "friend_requester" }),
   friendRequestsReceived: many(friendships, { relationName: "friend_addressee" }),
+
+  conversationMembers: many(conversationMembers),
+  sentMessages: many(messages),
 }));
 
 export const friendshipsRelations = relations(friendships, ({ one }) => ({
@@ -244,6 +319,7 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
   comments: many(comments),
   likes: many(postLikes),
   postTags: many(postTags),
+  sharedInMessages: many(messages),
 }));
 
 export const commentsRelations = relations(comments, ({ one, many }) => ({
@@ -258,6 +334,11 @@ export const commentsRelations = relations(comments, ({ one, many }) => ({
   likes: many(commentLikes),
 }));
 
+export const postLikesRelations = relations(postLikes, ({ one }) => ({
+  post: one(posts, { fields: [postLikes.postId], references: [posts.id] }),
+  user: one(users, { fields: [postLikes.userId], references: [users.id] }),
+}));
+
 export const commentLikesRelations = relations(commentLikes, ({ one }) => ({
   comment: one(comments, { fields: [commentLikes.commentId], references: [comments.id] }),
   user: one(users, { fields: [commentLikes.userId], references: [users.id] }),
@@ -270,4 +351,38 @@ export const tagsRelations = relations(tags, ({ many }) => ({
 export const postTagsRelations = relations(postTags, ({ one }) => ({
   post: one(posts, { fields: [postTags.postId], references: [posts.id] }),
   tag: one(tags, { fields: [postTags.tagId], references: [tags.id] }),
+}));
+
+export const conversationsRelations = relations(conversations, ({ many }) => ({
+  members: many(conversationMembers),
+  messages: many(messages),
+}));
+
+export const conversationMembersRelations = relations(
+  conversationMembers,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [conversationMembers.conversationId],
+      references: [conversations.id],
+    }),
+    user: one(users, {
+      fields: [conversationMembers.userId],
+      references: [users.id],
+    }),
+  })
+);
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  sender: one(users, {
+    fields: [messages.senderId],
+    references: [users.id],
+  }),
+  sharedPost: one(posts, {
+    fields: [messages.sharedPostId],
+    references: [posts.id],
+  }),
 }));

@@ -8,20 +8,42 @@ function getErrorMessage(error: unknown) {
   return String(error);
 }
 
-async function findTarget(body: { targetId?: string }) {
-  if (!body.targetId) return null;
+function isFriendCode(value: string) {
+  return /^\d{4}-\d{4}$/i.test(value.trim());
+}
 
-  const rows = await db
-    .select({
-      id: users.id,
-      username: users.username,
-      avatarUrl: users.avatarUrl,
-    })
-    .from(users)
-    .where(eq(users.id, body.targetId))
-    .limit(1);
+async function findTarget(targetId?: string, code?: string) {
+  if (targetId) {
+    const rows = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        avatarUrl: users.avatarUrl,
+        friendCode: users.friendCode,
+      })
+      .from(users)
+      .where(eq(users.id, targetId))
+      .limit(1);
 
-  return rows[0] ?? null;
+    return rows[0] ?? null;
+  }
+
+  if (code && isFriendCode(code)) {
+    const rows = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        avatarUrl: users.avatarUrl,
+        friendCode: users.friendCode,
+      })
+      .from(users)
+      .where(eq(users.friendCode, code.toUpperCase()))
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  return null;
 }
 
 export const friendsRouter = new Elysia({ prefix: "/friends" })
@@ -31,7 +53,7 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
     async ({ body, set }) => {
       try {
         const userId = body.userId;
-        const target = await findTarget(body);
+        const target = await findTarget(body.targetId, body.code);
 
         if (!target) {
           set.status = 404;
@@ -83,8 +105,7 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
           return {
             success: true,
             status: "incoming",
-            message:
-              "У тебя уже есть входящая заявка от этого пользователя. Нажми «Принять».",
+            message: "У тебя уже есть входящая заявка от этого пользователя. Нажми «Принять».",
             target,
           };
         }
@@ -129,7 +150,8 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
     {
       body: t.Object({
         userId: t.String(),
-        targetId: t.String(),
+        targetId: t.Optional(t.String()),
+        code: t.Optional(t.String()),
       }),
     }
   )
@@ -247,15 +269,18 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
           id: users.id,
           username: users.username,
           avatarUrl: users.avatarUrl,
+          friendCode: users.friendCode,
         })
         .from(users)
         .where(inArray(users.id, ids));
 
       return {
-        requests: rows.map((row) => ({
-          from: requestUsers.find((user) => user.id === row.requesterId) ?? null,
-          createdAt: row.createdAt?.toISOString?.() ?? row.createdAt,
-        })).filter((row) => row.from !== null),
+        requests: rows
+          .map((row) => ({
+            from: requestUsers.find((user) => user.id === row.requesterId) ?? null,
+            createdAt: row.createdAt?.toISOString?.() ?? row.createdAt,
+          }))
+          .filter((row) => row.from !== null),
       };
     } catch (error: unknown) {
       console.error("GET /api/friends/requests/:userId error:", error);
@@ -301,6 +326,8 @@ export const friendsRouter = new Elysia({ prefix: "/friends" })
           id: users.id,
           username: users.username,
           avatarUrl: users.avatarUrl,
+          friendCode: users.friendCode,
+          isProfilePrivate: users.isProfilePrivate,
         })
         .from(users)
         .where(inArray(users.id, friendIds));

@@ -2,22 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import Comments from "@/app/auth/components/Comments";
 import PostReactions from "@/app/auth/components/PostReactions";
-
-type Post = {
-  id: string;
-  slug: string;
-  title: string;
-  content: string;
-  createdAt: string | null;
-  coverImage: string | null;
-  author: { id: string; username: string; avatarUrl: string | null };
-  category: { id: string; title: string } | null;
-  tags: { id: string; name: string }[];
-  likeCount: number;
-  dislikeCount: number;
-  likedByMe: boolean;
-  dislikedByMe: boolean;
-};
+import SharePostButton from "@/app/posts/SharePostButton";
 
 async function getBaseUrl() {
   const h = await headers();
@@ -25,10 +10,11 @@ async function getBaseUrl() {
   const proto =
     h.get("x-forwarded-proto") ??
     (process.env.NODE_ENV === "development" ? "http" : "https");
+
   return `${proto}://${host}`;
 }
 
-async function getPost(slug: string): Promise<Post> {
+async function getPost(slug: string) {
   const base = await getBaseUrl();
   const res = await fetch(`${base}/api/posts/${encodeURIComponent(slug)}`, {
     cache: "no-store",
@@ -39,7 +25,7 @@ async function getPost(slug: string): Promise<Post> {
   }
 
   const data = await res.json();
-  return data.post as Post;
+  return data.post;
 }
 
 export default async function PostPage(props: {
@@ -69,16 +55,15 @@ export default async function PostPage(props: {
 
         {post.tags?.length ? (
           <div className="post-tags">
-            {post.tags.map((t) => (
-              <span key={t.id} className="post-tag">
-                #{t.name}
+            {post.tags.map((tag: any) => (
+              <span key={tag.id} className="post-tag">
+                #{tag.name}
               </span>
             ))}
           </div>
         ) : null}
 
         {post.coverImage && (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={post.coverImage}
             alt="Обложка поста"
@@ -88,13 +73,17 @@ export default async function PostPage(props: {
 
         <div className="post-content">{post.content}</div>
 
-        <PostReactions
-          slug={slug}
-          likeCount={post.likeCount}
-          dislikeCount={post.dislikeCount}
-          likedByMe={post.likedByMe}
-          dislikedByMe={post.dislikedByMe}
-        />
+        <div className="flex items-center gap-3 mt-6 flex-wrap">
+          <PostReactions
+            slug={slug}
+            likeCount={post.likeCount}
+            dislikeCount={post.dislikeCount}
+            likedByMe={post.likedByMe}
+            dislikedByMe={post.dislikedByMe}
+          />
+
+          <SharePostButton postId={post.id} title={post.title} />
+        </div>
 
         <Comments postSlug={slug} />
       </div>

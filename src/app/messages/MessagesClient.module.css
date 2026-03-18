@@ -1,0 +1,304 @@
+.page {
+  min-height: 100vh;
+  padding: 24px 16px;
+  color: #fff;
+}
+
+.layout {
+  max-width: 1300px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 18px;
+  min-height: calc(100vh - 120px);
+}
+
+.sidebar,
+.chat {
+  border-radius: 24px;
+  background: rgba(17, 18, 28, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
+}
+
+.sidebar {
+  padding: 18px;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-height: 720px;
+}
+
+.sidebarHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.title {
+  margin: 0;
+  font-size: 28px;
+}
+
+.subtitle {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+}
+
+.linkButton {
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.conversationList {
+  display: grid;
+  gap: 10px;
+}
+
+.conversationItem {
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  color: #fff;
+}
+
+.activeConversation {
+  border-color: rgba(167, 139, 250, 0.45);
+  background: rgba(124, 58, 237, 0.15);
+}
+
+.conversationTop {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.conversationAvatar,
+.conversationAvatarPlaceholder {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.conversationAvatarPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.conversationInfo {
+  min-width: 0;
+}
+
+.conversationName {
+  font-weight: 700;
+}
+
+.conversationPreview {
+  margin-top: 6px;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chatHeader {
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chatTitleWrap {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.chatTitle {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.chatLink {
+  color: #c4b5fd;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.shareBanner,
+.systemMessage,
+.empty,
+.emptyLarge {
+  margin: 18px 20px 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.shareTitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.sharePostTitle {
+  margin-top: 6px;
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.shareHint {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+}
+
+.messagesArea {
+  flex: 1;
+  padding: 18px 20px;
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.messageRow {
+  display: flex;
+}
+
+.myMessageRow {
+  justify-content: flex-end;
+}
+
+.otherMessageRow {
+  justify-content: flex-start;
+}
+
+.messageBubble {
+  max-width: min(720px, 85%);
+  border-radius: 20px;
+  padding: 14px;
+}
+
+.myMessageBubble {
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+}
+
+.otherMessageBubble {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sharedPostCard {
+  display: block;
+  overflow: hidden;
+  border-radius: 18px;
+  text-decoration: none;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 10px;
+}
+
+.sharedPostImage,
+.sharedPostImagePlaceholder {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+.sharedPostImagePlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 42px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sharedPostBody {
+  padding: 12px 14px;
+}
+
+.sharedPostLabel {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.sharedPostTitleText {
+  margin-top: 6px;
+  font-weight: 800;
+}
+
+.messageText {
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.messageMeta {
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.composer {
+  padding: 18px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.composerActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.sendButton {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 14px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: #7c3aed;
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

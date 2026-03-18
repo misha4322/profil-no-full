@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "./ProfileClient.module.css";
 
 async function readJsonSafe(res: Response) {
@@ -14,9 +14,18 @@ async function readJsonSafe(res: Response) {
   }
 }
 
+function splitFavoriteGames(value: string | null | undefined) {
+  if (!value) return [];
+  return value
+    .split(/[\n,]/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export default function ProfileClient({ userId }: { userId: string }) {
   const [data, setData] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -46,6 +55,21 @@ export default function ProfileClient({ userId }: { userId: string }) {
     }
   }
 
+  async function copyFriendCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 1200);
+    } catch {
+      setMessage("Не удалось скопировать код друга");
+    }
+  }
+
+  const favoriteGames = useMemo(
+    () => splitFavoriteGames(data?.user?.favoriteGames),
+    [data]
+  );
+
   if (!data && message) {
     return (
       <div className={styles.page}>
@@ -67,6 +91,12 @@ export default function ProfileClient({ userId }: { userId: string }) {
   return (
     <div className={styles.page}>
       <div className={styles.card}>
+        {user.profileBannerUrl ? (
+          <img src={user.profileBannerUrl} alt="banner" className={styles.banner} />
+        ) : (
+          <div className={styles.bannerPlaceholder} />
+        )}
+
         <div className={styles.hero}>
           <div className={styles.avatarWrap}>
             {user.avatarUrl ? (
@@ -81,22 +111,39 @@ export default function ProfileClient({ userId }: { userId: string }) {
           <div className={styles.heroInfo}>
             <div className={styles.topRow}>
               <h1 className={styles.title}>{user.username}</h1>
+
               <span className={styles.badge}>
-                {user.isProfilePrivate ? "Приватный профиль" : "Открытый профиль"}
+                {user.isProfilePrivate ? "Приватный профиль" : "Публичный профиль"}
               </span>
             </div>
 
+            {user.statusText ? <div className={styles.status}>{user.statusText}</div> : null}
+
             <div className={styles.meta}>
               <span>ID: {user.id}</span>
-              {user.friendCode ? <span>Код друга: {user.friendCode}</span> : null}
+              {user.createdAt ? (
+                <span>
+                  На сайте с {new Date(user.createdAt).toLocaleDateString("ru-RU")}
+                </span>
+              ) : null}
             </div>
-
-            {user.email ? <div className={styles.email}>{user.email}</div> : null}
 
             <div className={styles.actions}>
               <button className={styles.primaryButton} type="button" onClick={copyId}>
                 {copied ? "✅ ID скопирован" : "📋 Скопировать ID"}
               </button>
+
+              {user.friendCode ? (
+                <button
+                  className={styles.secondaryButton}
+                  type="button"
+                  onClick={() => copyFriendCode(user.friendCode)}
+                >
+                  {copiedCode
+                    ? "✅ Код скопирован"
+                    : `👥 Код друга: ${user.friendCode}`}
+                </button>
+              ) : null}
 
               <Link href="/settings" className={styles.secondaryButton}>
                 ⚙️ Настройки
@@ -106,8 +153,8 @@ export default function ProfileClient({ userId }: { userId: string }) {
                 🤝 Друзья
               </Link>
 
-              <Link href="/posts/new" className={styles.secondaryButton}>
-                ➕ Новый пост
+              <Link href="/messages" className={styles.secondaryButton}>
+                💬 Сообщения
               </Link>
             </div>
           </div>
@@ -129,6 +176,56 @@ export default function ProfileClient({ userId }: { userId: string }) {
           <div className={styles.statCard}>
             <div className={styles.statValue}>{counts.friends}</div>
             <div className={styles.statLabel}>Друзей</div>
+          </div>
+        </div>
+
+        <div className={styles.columns}>
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>О себе</h2>
+
+            {user.bio ? (
+              <div className={styles.bio}>{user.bio}</div>
+            ) : (
+              <div className={styles.emptyBox}>Пока описание не заполнено.</div>
+            )}
+
+            <div className={styles.infoList}>
+              {user.location ? <div>📍 {user.location}</div> : null}
+              {user.email ? <div>✉️ {user.email}</div> : null}
+              {user.websiteUrl ? (
+                <a href={user.websiteUrl} target="_blank" rel="noreferrer" className={styles.link}>
+                  🌐 {user.websiteUrl}
+                </a>
+              ) : null}
+              {user.telegram ? <div>📨 {user.telegram}</div> : null}
+              {user.discord ? <div>🎧 {user.discord}</div> : null}
+              {user.steamProfileUrl ? (
+                <a
+                  href={user.steamProfileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.link}
+                >
+                  🎮 Steam профиль
+                </a>
+              ) : null}
+            </div>
+          </div>
+
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Любимые игры</h2>
+
+            {!favoriteGames.length ? (
+              <div className={styles.emptyBox}>Список любимых игр пуст.</div>
+            ) : (
+              <div className={styles.tags}>
+                {favoriteGames.map((game) => (
+                  <span key={game} className={styles.tag}>
+                    {game}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
