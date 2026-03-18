@@ -5,9 +5,11 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, User, Mail, Lock } from "lucide-react";
 
+import { apiRequest } from "@/lib/api";
+
 export default function RegisterForm() {
   const router = useRouter();
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -16,25 +18,20 @@ export default function RegisterForm() {
     setError("");
     setIsLoading(true);
 
-    const form = e.currentTarget as HTMLFormElement;
+    const form = e.currentTarget;
     const username = (form.elements.namedItem("username") as HTMLInputElement).value;
     const email = (form.elements.namedItem("email") as HTMLInputElement).value;
     const password = (form.elements.namedItem("password") as HTMLInputElement).value;
 
     try {
-      const res = await fetch("/api/auth/register", {
+      await apiRequest("/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+        }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || "Ошибка при создании аккаунта. Попробуйте снова.");
-        setIsLoading(false);
-        return;
-      }
 
       const result = await signIn("credentials", {
         email,
@@ -52,7 +49,11 @@ export default function RegisterForm() {
       router.refresh();
     } catch (err) {
       console.error("Ошибка регистрации:", err);
-      setError("Внутренняя ошибка сервера. Пожалуйста, попробуйте позже.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Внутренняя ошибка сервера. Пожалуйста, попробуйте позже."
+      );
       setIsLoading(false);
     }
   };
@@ -69,7 +70,7 @@ export default function RegisterForm() {
           </div>
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
           <label className="text-sm font-medium text-gray-300">Имя пользователя</label>
@@ -82,7 +83,7 @@ export default function RegisterForm() {
               className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/30 transition-all duration-300"
               required
               minLength={3}
-              maxLength={50}
+              maxLength={32}
             />
           </div>
         </div>
@@ -112,6 +113,7 @@ export default function RegisterForm() {
               {showPassword ? "Скрыть" : "Показать"}
             </button>
           </div>
+
           <div className="relative group">
             <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-purple-400 transition-colors duration-300" />
             <input
@@ -134,6 +136,7 @@ export default function RegisterForm() {
               )}
             </button>
           </div>
+
           <p className="text-xs text-gray-500">Минимум 6 символов</p>
         </div>
 
@@ -148,9 +151,7 @@ export default function RegisterForm() {
               <span>Регистрация...</span>
             </>
           ) : (
-            <>
-              <span>Зарегистрироваться</span>
-            </>
+            <span>Зарегистрироваться</span>
           )}
         </button>
       </form>

@@ -26,7 +26,6 @@ export const users = pgTable(
     providerId: varchar("provider_id", { length: 255 }),
     role: varchar("role", { length: 20 }).notNull().default("user"),
     avatarUrl: text("avatar_url"),
-<<<<<<< HEAD
 
     // расширенный профиль
     profileBannerUrl: text("profile_banner_url"),
@@ -45,13 +44,6 @@ export const users = pgTable(
 
     // дружба / приватность
     friendCode: varchar("friend_code", { length: 9 }).unique(),
-=======
-    
-    // ✅ Дружеский код пользователя в формате "1234-5678"
-    friendCode: varchar("friend_code", { length: 9 }).unique(), // "1234-5678"
-    
-    // ✅ Приватность профиля
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
     isProfilePrivate: boolean("is_profile_private").notNull().default(false),
 
     isBanned: boolean("is_banned").notNull().default(false),
@@ -66,11 +58,7 @@ export const users = pgTable(
 );
 
 /* =========================
-<<<<<<< HEAD
    FRIENDSHIPS
-=======
-   FRIENDSHIPS (friends + requests)
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 ========================= */
 
 export const friendships = pgTable(
@@ -95,10 +83,6 @@ export const friendships = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-<<<<<<< HEAD
-=======
-    // запретить дубль одной и той же заявки A -> B
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
     requesterAddresseeUnique: uniqueIndex("friendships_requester_addressee_unique").on(
       t.requesterId,
       t.addresseeId
@@ -125,15 +109,9 @@ export const categories = pgTable("categories", {
 export const posts = pgTable("posts", {
   id: uuid("id").defaultRandom().primaryKey(),
   authorId: uuid("author_id")
-<<<<<<< HEAD
     .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   categoryId: uuid("category_id").references(() => categories.id, { onDelete: "set null" }),
-=======
-    .references(() => users.id)
-    .notNull(),
-  categoryId: uuid("category_id").references(() => categories.id),
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
   title: varchar("title", { length: 200 }).notNull(),
   slug: varchar("slug", { length: 220 }).notNull().unique(),
   content: text("content").notNull(),
@@ -154,17 +132,11 @@ export const comments = pgTable("comments", {
     .references(() => posts.id, { onDelete: "cascade" })
     .notNull(),
   authorId: uuid("author_id")
-<<<<<<< HEAD
     .references(() => users.id, { onDelete: "cascade" })
     .notNull(),
   parentId: uuid("parent_id").references((): any => comments.id, {
     onDelete: "cascade",
   }),
-=======
-    .references(() => users.id)
-    .notNull(),
-  parentId: uuid("parent_id").references((): any => comments.id),
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
@@ -206,11 +178,7 @@ export const commentLikes = pgTable(
       .references(() => users.id, { onDelete: "cascade" })
       .notNull(),
     type: text("type").$type<"like" | "dislike">().notNull(),
-<<<<<<< HEAD
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-=======
-    createdAt: timestamp("created_at").defaultNow().notNull(),
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
   },
   (t) => ({
     commentUserUnique: uniqueIndex("comment_likes_comment_user_unique").on(
@@ -245,7 +213,6 @@ export const postTags = pgTable(
 );
 
 /* =========================
-<<<<<<< HEAD
    DIRECT CONVERSATIONS
 ========================= */
 
@@ -315,8 +282,6 @@ export const messages = pgTable("messages", {
 });
 
 /* =========================
-=======
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
    RELATIONS
 ========================= */
 
@@ -324,17 +289,11 @@ export const usersRelations = relations(users, ({ many }) => ({
   posts: many(posts),
   comments: many(comments),
 
-<<<<<<< HEAD
   friendRequestsSent: many(friendships, { relationName: "friend_requester" }),
   friendRequestsReceived: many(friendships, { relationName: "friend_addressee" }),
 
   conversationMembers: many(conversationMembers),
   sentMessages: many(messages),
-=======
-  // Дружба/заявки (две стороны)
-  friendRequestsSent: many(friendships, { relationName: "friend_requester" }),
-  friendRequestsReceived: many(friendships, { relationName: "friend_addressee" }),
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 }));
 
 export const friendshipsRelations = relations(friendships, ({ one }) => ({
@@ -360,10 +319,7 @@ export const postsRelations = relations(posts, ({ one, many }) => ({
   comments: many(comments),
   likes: many(postLikes),
   postTags: many(postTags),
-<<<<<<< HEAD
   sharedInMessages: many(messages),
-=======
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 }));
 
 export const commentsRelations = relations(comments, ({ one, many }) => ({
@@ -378,14 +334,11 @@ export const commentsRelations = relations(comments, ({ one, many }) => ({
   likes: many(commentLikes),
 }));
 
-<<<<<<< HEAD
 export const postLikesRelations = relations(postLikes, ({ one }) => ({
   post: one(posts, { fields: [postLikes.postId], references: [posts.id] }),
   user: one(users, { fields: [postLikes.userId], references: [users.id] }),
 }));
 
-=======
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 export const commentLikesRelations = relations(commentLikes, ({ one }) => ({
   comment: one(comments, { fields: [commentLikes.commentId], references: [comments.id] }),
   user: one(users, { fields: [commentLikes.userId], references: [users.id] }),
@@ -398,7 +351,6 @@ export const tagsRelations = relations(tags, ({ many }) => ({
 export const postTagsRelations = relations(postTags, ({ one }) => ({
   post: one(posts, { fields: [postTags.postId], references: [posts.id] }),
   tag: one(tags, { fields: [postTags.tagId], references: [tags.id] }),
-<<<<<<< HEAD
 }));
 
 export const conversationsRelations = relations(conversations, ({ many }) => ({
@@ -433,6 +385,4 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     fields: [messages.sharedPostId],
     references: [posts.id],
   }),
-=======
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 }));

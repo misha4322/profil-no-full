@@ -1,5 +1,7 @@
 import { Elysia, t } from "elysia";
 import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+
+import { db } from "../db";
 import {
   conversationMembers,
   conversations,
@@ -8,17 +10,29 @@ import {
   posts,
   users,
 } from "../db/schema";
-import { db } from "../db";
 
 const nullableString = t.Union([t.String(), t.Null()]);
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    return error.message;
+  }
+
   return String(error);
 }
 
 function buildDirectKey(a: string, b: string) {
   return [a, b].sort().join(":");
+}
+
+function isDirectKeyUniqueError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("conversations_direct_key_unique") ||
+    message.includes("duplicate key") ||
+    message.includes("unique")
+  );
 }
 
 async function areFriends(userA: string, userB: string) {
@@ -45,6 +59,21 @@ async function areFriends(userA: string, userB: string) {
   return !!rows[0];
 }
 
+async function getConversationByDirectKey(directKey: string) {
+  const rows = await db
+    .select({
+      id: conversations.id,
+      directKey: conversations.directKey,
+      updatedAt: conversations.updatedAt,
+      lastMessageAt: conversations.lastMessageAt,
+    })
+    .from(conversations)
+    .where(eq(conversations.directKey, directKey))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
 async function ensureDirectConversation(userId: string, friendId: string) {
   if (userId === friendId) {
     throw new Error("Нельзя создать диалог с самим собой");
@@ -57,63 +86,38 @@ async function ensureDirectConversation(userId: string, friendId: string) {
 
   const directKey = buildDirectKey(userId, friendId);
 
-  const existing = await db
-    .select({
-      id: conversations.id,
-      directKey: conversations.directKey,
-      updatedAt: conversations.updatedAt,
-      lastMessageAt: conversations.lastMessageAt,
-    })
-    .from(conversations)
-    .where(eq(conversations.directKey, directKey))
-    .limit(1);
+  let conversation = await getConversationByDirectKey(directKey);
 
-  if (existing[0]) {
-    const existingMembers = await db
-      .select({
-        conversationId: conversationMembers.conversationId,
-        userId: conversationMembers.userId,
-      })
-      .from(conversationMembers)
-      .where(eq(conversationMembers.conversationId, existing[0].id));
+  if (!conversation) {
+    try {
+      const inserted = await db
+        .insert(conversations)
+        .values({
+          type: "direct",
+          directKey,
+          updatedAt: new Date(),
+          lastMessageAt: null,
+        })
+        .returning({
+          id: conversations.id,
+          directKey: conversations.directKey,
+          updatedAt: conversations.updatedAt,
+          lastMessageAt: conversations.lastMessageAt,
+        });
 
-    const memberIds = new Set(existingMembers.map((m) => m.userId));
+      conversation = inserted[0] ?? null;
+    } catch (error) {
+      if (!isDirectKeyUniqueError(error)) {
+        throw error;
+      }
 
-    if (!memberIds.has(userId) || !memberIds.has(friendId)) {
-      await db
-        .insert(conversationMembers)
-        .values([
-          {
-            conversationId: existing[0].id,
-            userId,
-          },
-          {
-            conversationId: existing[0].id,
-            userId: friendId,
-          },
-        ])
-        .onConflictDoNothing();
+      conversation = await getConversationByDirectKey(directKey);
     }
-
-    return existing[0];
   }
 
-  const inserted = await db
-    .insert(conversations)
-    .values({
-      type: "direct",
-      directKey,
-      updatedAt: new Date(),
-      lastMessageAt: null,
-    })
-    .returning({
-      id: conversations.id,
-      directKey: conversations.directKey,
-      updatedAt: conversations.updatedAt,
-      lastMessageAt: conversations.lastMessageAt,
-    });
-
-  const conversation = inserted[0];
+  if (!conversation) {
+    throw new Error("Не удалось создать или найти диалог");
+  }
 
   await db
     .insert(conversationMembers)
@@ -152,7 +156,6 @@ async function ensureMembership(conversationId: string, userId: string) {
 }
 
 export const messagesRouter = new Elysia({ prefix: "/messages" })
-
   .get("/conversations/:userId", async ({ params, set }) => {
     try {
       const memberRows = await db
@@ -172,7 +175,6 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
       const convRows = await db
         .select({
           id: conversations.id,
-          directKey: conversations.directKey,
           updatedAt: conversations.updatedAt,
           lastMessageAt: conversations.lastMessageAt,
         })
@@ -191,8 +193,8 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
       const otherMemberIds = Array.from(
         new Set(
           allMembers
-            .filter((m) => m.userId !== params.userId)
-            .map((m) => m.userId)
+            .filter((member) => member.userId !== params.userId)
+            .map((member) => member.userId)
         )
       );
 
@@ -223,17 +225,17 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
 
       const lastMessageMap = new Map<string, (typeof messageRows)[number]>();
 
-      for (const msg of messageRows) {
-        if (!lastMessageMap.has(msg.conversationId)) {
-          lastMessageMap.set(msg.conversationId, msg);
+      for (const message of messageRows) {
+        if (!lastMessageMap.has(message.conversationId)) {
+          lastMessageMap.set(message.conversationId, message);
         }
       }
 
       const sharedPostIds = Array.from(
         new Set(
           messageRows
-            .map((m) => m.sharedPostId)
-            .filter((v): v is string => !!v)
+            .map((message) => message.sharedPostId)
+            .filter((value): value is string => !!value)
         )
       );
 
@@ -249,18 +251,22 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
             .where(inArray(posts.id, sharedPostIds))
         : [];
 
-      const userMap = new Map(userRows.map((u) => [u.id, u]));
-      const sharedPostMap = new Map(sharedPosts.map((p) => [p.id, p]));
+      const userMap = new Map(userRows.map((user) => [user.id, user]));
+      const sharedPostMap = new Map(sharedPosts.map((post) => [post.id, post]));
 
       return {
         conversations: convRows.map((conversation) => {
           const otherMember = allMembers.find(
-            (m) =>
-              m.conversationId === conversation.id && m.userId !== params.userId
+            (member) =>
+              member.conversationId === conversation.id &&
+              member.userId !== params.userId
           );
 
           const otherUser = otherMember ? userMap.get(otherMember.userId) ?? null : null;
           const lastMessage = lastMessageMap.get(conversation.id) ?? null;
+          const currentMember = memberRows.find(
+            (member) => member.conversationId === conversation.id
+          );
 
           return {
             id: conversation.id,
@@ -268,6 +274,8 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
               conversation.updatedAt?.toISOString?.() ?? conversation.updatedAt,
             lastMessageAt:
               conversation.lastMessageAt?.toISOString?.() ?? conversation.lastMessageAt,
+            lastReadAt:
+              currentMember?.lastReadAt?.toISOString?.() ?? currentMember?.lastReadAt ?? null,
             otherUser: otherUser
               ? {
                   id: otherUser.id,
@@ -275,10 +283,6 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
                   avatarUrl: otherUser.avatarUrl ?? null,
                 }
               : null,
-            lastReadAt:
-              memberRows.find((m) => m.conversationId === conversation.id)?.lastReadAt?.toISOString?.() ??
-              memberRows.find((m) => m.conversationId === conversation.id)?.lastReadAt ??
-              null,
             lastMessage: lastMessage
               ? {
                   id: lastMessage.id,
@@ -296,8 +300,9 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
         }),
       };
     } catch (error: unknown) {
-      console.error("GET /api/messages/conversations/:userId error:", error);
+      console.error("GET /messages/conversations/:userId error:", error);
       set.status = 500;
+
       return {
         error: "Internal Server Error",
         details:
@@ -326,9 +331,11 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
         },
       };
     } catch (error: unknown) {
-      console.error("GET /api/messages/direct/:userId/:friendId error:", error);
+      console.error("GET /messages/direct/:userId/:friendId error:", error);
+
       const message = getErrorMessage(error);
       set.status = message.includes("друз") ? 403 : 500;
+
       return { error: message };
     }
   })
@@ -362,7 +369,7 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
           .where(eq(messages.conversationId, params.conversationId))
           .orderBy(asc(messages.createdAt));
 
-        const senderIds = Array.from(new Set(messageRows.map((m) => m.senderId)));
+        const senderIds = Array.from(new Set(messageRows.map((message) => message.senderId)));
 
         const senderRows = senderIds.length
           ? await db
@@ -378,8 +385,8 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
         const sharedPostIds = Array.from(
           new Set(
             messageRows
-              .map((m) => m.sharedPostId)
-              .filter((v): v is string => !!v)
+              .map((message) => message.sharedPostId)
+              .filter((value): value is string => !!value)
           )
         );
 
@@ -395,8 +402,8 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
               .where(inArray(posts.id, sharedPostIds))
           : [];
 
-        const senderMap = new Map(senderRows.map((s) => [s.id, s]));
-        const sharedPostMap = new Map(sharedPosts.map((p) => [p.id, p]));
+        const senderMap = new Map(senderRows.map((sender) => [sender.id, sender]));
+        const sharedPostMap = new Map(sharedPosts.map((post) => [post.id, post]));
 
         return {
           messages: messageRows.map((message) => ({
@@ -414,8 +421,9 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
           })),
         };
       } catch (error: unknown) {
-        console.error("GET /api/messages/:conversationId error:", error);
+        console.error("GET /messages/:conversationId error:", error);
         set.status = 500;
+
         return {
           error: "Internal Server Error",
           details:
@@ -480,6 +488,8 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
           }
         }
 
+        const now = new Date();
+
         const inserted = await db
           .insert(messages)
           .values({
@@ -503,13 +513,14 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
         await db
           .update(conversations)
           .set({
-            updatedAt: new Date(),
-            lastMessageAt: new Date(),
+            updatedAt: now,
+            lastMessageAt: now,
           })
           .where(eq(conversations.id, conversationId));
 
         return {
           success: true,
+          conversationId,
           message: {
             ...inserted[0],
             createdAt:
@@ -519,9 +530,11 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
           },
         };
       } catch (error: unknown) {
-        console.error("POST /api/messages/send error:", error);
+        console.error("POST /messages/send error:", error);
+
         const message = getErrorMessage(error);
         set.status = message.includes("друз") ? 403 : 500;
+
         return { error: message };
       }
     },
@@ -559,8 +572,9 @@ export const messagesRouter = new Elysia({ prefix: "/messages" })
 
         return { success: true };
       } catch (error: unknown) {
-        console.error("POST /api/messages/read error:", error);
+        console.error("POST /messages/read error:", error);
         set.status = 500;
+
         return {
           error: "Internal Server Error",
           details:

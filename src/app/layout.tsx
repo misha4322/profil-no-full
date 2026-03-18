@@ -10,11 +10,15 @@ import Footer from "@/app/auth/components/Footer";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "GameHub",
-  description: "Сообщество для обсуждения игр",
+  title: "GameHelp",
+  description: "GameHelp — игровое сообщество: посты, обсуждения, друзья и сообщения.",
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const session = await getServerSession(authOptions);
 
   return (

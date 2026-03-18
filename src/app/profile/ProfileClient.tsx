@@ -1,21 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { apiRequest } from "@/lib/api";
 import styles from "./ProfileClient.module.css";
 
-async function readJsonSafe(res: Response) {
-  const text = await res.text();
-
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`Сервер вернул не JSON. Проверь маршрут: ${res.url}`);
-  }
-}
-
 function splitFavoriteGames(value: string | null | undefined) {
-  if (!value) return [];
+  if (!value) {
+    return [];
+  }
+
   return value
     .split(/[\n,]/g)
     .map((item) => item.trim())
@@ -25,25 +20,21 @@ function splitFavoriteGames(value: string | null | undefined) {
 export default function ProfileClient({ userId }: { userId: string }) {
   const [data, setData] = useState<any>(null);
   const [copied, setCopied] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/users/me/${userId}`, { cache: "no-store" });
-        const json = await readJsonSafe(res);
-
-        if (!res.ok) {
-          throw new Error(json?.error || "Ошибка загрузки профиля");
-        }
-
-        setData(json);
-      } catch (error: any) {
-        setMessage(error?.message || "Ошибка загрузки профиля");
-      }
-    })();
+  const load = useCallback(async () => {
+    try {
+      const result = await apiRequest(`/users/me/${userId}`);
+      setData(result);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Ошибка загрузки профиля";
+      setMessage(text);
+    }
   }, [userId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   async function copyId() {
     try {
@@ -52,16 +43,6 @@ export default function ProfileClient({ userId }: { userId: string }) {
       setTimeout(() => setCopied(false), 1200);
     } catch {
       setMessage("Не удалось скопировать ID");
-    }
-  }
-
-  async function copyFriendCode(code: string) {
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 1200);
-    } catch {
-      setMessage("Не удалось скопировать код друга");
     }
   }
 
@@ -129,21 +110,13 @@ export default function ProfileClient({ userId }: { userId: string }) {
             </div>
 
             <div className={styles.actions}>
-              <button className={styles.primaryButton} type="button" onClick={copyId}>
+              <button
+                className={styles.primaryButton}
+                type="button"
+                onClick={() => void copyId()}
+              >
                 {copied ? "✅ ID скопирован" : "📋 Скопировать ID"}
               </button>
-
-              {user.friendCode ? (
-                <button
-                  className={styles.secondaryButton}
-                  type="button"
-                  onClick={() => copyFriendCode(user.friendCode)}
-                >
-                  {copiedCode
-                    ? "✅ Код скопирован"
-                    : `👥 Код друга: ${user.friendCode}`}
-                </button>
-              ) : null}
 
               <Link href="/settings" className={styles.secondaryButton}>
                 ⚙️ Настройки
@@ -252,7 +225,9 @@ export default function ProfileClient({ userId }: { userId: string }) {
                   <div className={styles.postBody}>
                     <div className={styles.postTitle}>{post.title}</div>
                     <div className={styles.postDate}>
-                      {post.createdAt ? new Date(post.createdAt).toLocaleString("ru-RU") : "—"}
+                      {post.createdAt
+                        ? new Date(post.createdAt).toLocaleString("ru-RU")
+                        : "—"}
                     </div>
                   </div>
                 </Link>

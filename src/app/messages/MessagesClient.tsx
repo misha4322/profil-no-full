@@ -1,77 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+import { apiRequest } from "@/lib/api";
 import styles from "./MessagesClient.module.css";
-
-async function readJsonSafe(res: Response) {
-  const text = await res.text();
-
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`Сервер вернул не JSON. Проверь маршрут: ${res.url}`);
-  }
-}
-
-type ConversationItem = {
-  id: string;
-  updatedAt: string | null;
-  lastMessageAt: string | null;
-  lastReadAt: string | null;
-  otherUser: {
-    id: string;
-    username: string;
-    avatarUrl: string | null;
-  } | null;
-  lastMessage: {
-    id: string;
-    senderId: string;
-    type: "text" | "post_share";
-    content: string | null;
-    createdAt: string | null;
-    sharedPost:
-      | {
-          id: string;
-          slug: string;
-          title: string;
-          coverImage: string | null;
-        }
-      | null;
-  } | null;
-};
-
-type MessageItem = {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  type: "text" | "post_share";
-  content: string | null;
-  createdAt: string | null;
-  editedAt: string | null;
-  sender: {
-    id: string;
-    username: string;
-    avatarUrl: string | null;
-  } | null;
-  sharedPost:
-    | {
-        id: string;
-        slug: string;
-        title: string;
-        coverImage: string | null;
-      }
-    | null;
-};
 
 export default function MessagesClient({ userId }: { userId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [conversations, setConversations] = useState<any[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [text, setText] = useState("");
   const [loadingList, setLoadingList] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -83,97 +25,92 @@ export default function MessagesClient({ userId }: { userId: string }) {
   const shareTitle = searchParams.get("shareTitle");
 
   const currentConversation = useMemo(
-    () => conversations.find((c) => c.id === currentConversationId) ?? null,
+    () => conversations.find((conversation: any) => conversation.id === currentConversationId) ?? null,
     [conversations, currentConversationId]
   );
 
-  async function loadConversations(selectId?: string | null) {
-    try {
-      setLoadingList(true);
-      const res = await fetch(`/api/messages/conversations/${userId}`, {
-        cache: "no-store",
-      });
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка загрузки диалогов");
-      }
-
-      const list = (json.conversations ?? []) as ConversationItem[];
-      setConversations(list);
-
-      if (selectId) {
-        setCurrentConversationId(selectId);
-      } else if (!currentConversationId && list[0]) {
-        setCurrentConversationId(list[0].id);
-      } else if (
-        currentConversationId &&
-        !list.some((conversation) => conversation.id === currentConversationId)
-      ) {
-        setCurrentConversationId(list[0]?.id ?? null);
-      }
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка загрузки диалогов");
-    } finally {
-      setLoadingList(false);
-    }
-  }
-
-  async function loadMessages(conversationId: string) {
-    try {
-      setLoadingMessages(true);
-
-      const res = await fetch(
-        `/api/messages/${conversationId}?userId=${encodeURIComponent(userId)}`,
-        {
-          cache: "no-store",
-        }
-      );
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка загрузки сообщений");
-      }
-
-      setMessages(json.messages ?? []);
-
-      await fetch("/api/messages/read", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, conversationId }),
-      }).catch(() => null);
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка загрузки сообщений");
-    } finally {
-      setLoadingMessages(false);
-    }
-  }
-
-  useEffect(() => {
-    loadConversations();
-  }, [userId]);
-
-  useEffect(() => {
-    if (!withUserId) return;
-
-    (async () => {
+  const loadConversations = useCallback(
+    async (selectedConversationId?: string | null) => {
       try {
-        const res = await fetch(`/api/messages/direct/${userId}/${withUserId}`, {
-          cache: "no-store",
+        setLoadingList(true);
+
+        const result = await apiRequest(`/messages/conversations/${userId}`);
+        const list = result.conversations ?? [];
+
+        setConversations(list);
+
+        setCurrentConversationId((prev) => {
+          if (selectedConversationId) {
+            return selectedConversationId;
+          }
+
+          if (!prev) {
+            return list[0]?.id ?? null;
+          }
+
+          if (!list.some((conversation: any) => conversation.id === prev)) {
+            return list[0]?.id ?? null;
+          }
+
+          return prev;
         });
-        const json = await readJsonSafe(res);
+      } catch (error) {
+        const text = error instanceof Error ? error.message : "Ошибка загрузки диалогов";
+        setMessage(text);
+      } finally {
+        setLoadingList(false);
+      }
+    },
+    [userId]
+  );
 
-        if (!res.ok) {
-          throw new Error(json?.error || "Не удалось открыть диалог");
-        }
+  const loadMessages = useCallback(
+    async (conversationId: string) => {
+      try {
+        setLoadingMessages(true);
 
-        const conversationId = json?.conversation?.id as string;
-        await loadConversations(conversationId);
-      } catch (error: any) {
-        setMessage(error?.message || "Не удалось открыть диалог");
+        const result = await apiRequest(`/messages/${conversationId}`, {
+          query: { userId },
+        });
+
+        setMessages(result.messages ?? []);
+
+        await apiRequest("/messages/read", {
+          method: "POST",
+          body: JSON.stringify({
+            userId,
+            conversationId,
+          }),
+        });
+      } catch (error) {
+        const text = error instanceof Error ? error.message : "Ошибка загрузки сообщений";
+        setMessage(text);
+      } finally {
+        setLoadingMessages(false);
+      }
+    },
+    [userId]
+  );
+
+  useEffect(() => {
+    void loadConversations();
+  }, [loadConversations]);
+
+  useEffect(() => {
+    if (!withUserId) {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const result = await apiRequest(`/messages/direct/${userId}/${withUserId}`);
+        await loadConversations(result.conversation.id);
+      } catch (error) {
+        const text = error instanceof Error ? error.message : "Не удалось открыть диалог";
+        setMessage(text);
       }
     })();
-  }, [withUserId, userId]);
+  }, [loadConversations, userId, withUserId]);
 
   useEffect(() => {
     if (!currentConversationId) {
@@ -181,8 +118,8 @@ export default function MessagesClient({ userId }: { userId: string }) {
       return;
     }
 
-    loadMessages(currentConversationId);
-  }, [currentConversationId]);
+    void loadMessages(currentConversationId);
+  }, [currentConversationId, loadMessages]);
 
   async function send() {
     if (!currentConversationId && !withUserId) {
@@ -198,9 +135,8 @@ export default function MessagesClient({ userId }: { userId: string }) {
       setSending(true);
       setMessage("");
 
-      const res = await fetch("/api/messages/send", {
+      const result = await apiRequest("/messages/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
           conversationId: currentConversationId,
@@ -210,25 +146,21 @@ export default function MessagesClient({ userId }: { userId: string }) {
         }),
       });
 
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка отправки сообщения");
-      }
-
       setText("");
+
+      const newConversationId = result.conversationId;
+      setCurrentConversationId(newConversationId);
 
       const params = new URLSearchParams(searchParams.toString());
       params.delete("sharePostId");
       params.delete("shareTitle");
       router.replace(`/messages${params.toString() ? `?${params.toString()}` : ""}`);
 
-      await loadConversations(currentConversationId);
-      if (currentConversationId) {
-        await loadMessages(currentConversationId);
-      }
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка отправки");
+      await loadConversations(newConversationId);
+      await loadMessages(newConversationId);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Ошибка отправки";
+      setMessage(text);
     } finally {
       setSending(false);
     }
@@ -259,7 +191,7 @@ export default function MessagesClient({ userId }: { userId: string }) {
             </div>
           ) : (
             <div className={styles.conversationList}>
-              {conversations.map((conversation) => (
+              {conversations.map((conversation: any) => (
                 <button
                   key={conversation.id}
                   type="button"
@@ -342,7 +274,7 @@ export default function MessagesClient({ userId }: { userId: string }) {
                 ) : messages.length === 0 ? (
                   <div className={styles.empty}>Пока нет сообщений. Начни разговор первым.</div>
                 ) : (
-                  messages.map((msg) => {
+                  messages.map((msg: any) => {
                     const mine = msg.senderId === userId;
 
                     return (
@@ -417,7 +349,7 @@ export default function MessagesClient({ userId }: { userId: string }) {
                     type="button"
                     className={styles.sendButton}
                     disabled={sending || (!text.trim() && !sharePostId)}
-                    onClick={send}
+                    onClick={() => void send()}
                   >
                     {sending
                       ? "Отправка..."

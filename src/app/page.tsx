@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import Image from "next/image"; // ✅ Импортируем Image
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import "./Home.css";
 
 type PostCard = {
@@ -9,9 +10,15 @@ type PostCard = {
   title: string;
   content: string;
   createdAt: string;
-  author: { username: string; avatarUrl: string | null };
-  category: { title: string } | null;
-  tags: { id: string; name: string }[];
+  coverImage?: string | null;
+  author?: {
+    username?: string | null;
+    avatarUrl?: string | null;
+  };
+  category?: {
+    title?: string | null;
+  } | null;
+  tags?: { id: string; name: string }[];
 };
 
 async function getBaseUrl() {
@@ -20,217 +27,274 @@ async function getBaseUrl() {
   const proto =
     h.get("x-forwarded-proto") ??
     (process.env.NODE_ENV === "development" ? "http" : "https");
+
   return `${proto}://${host}`;
 }
 
 async function getPosts(): Promise<PostCard[]> {
   const base = await getBaseUrl();
   const res = await fetch(`${base}/api/posts`, { cache: "no-store" });
-  if (!res.ok) return [];
+
+  if (!res.ok) {
+    return [];
+  }
+
   const data = await res.json();
-  return (data.posts ?? []) as PostCard[];
+  return Array.isArray(data?.posts) ? data.posts : [];
+}
+
+function getExcerpt(text: string, max = 140) {
+  if (!text) return "";
+  return text.length > max ? `${text.slice(0, max).trim()}…` : text;
 }
 
 export default async function Home() {
-  const posts = await getPosts();
+  const [posts, session] = await Promise.all([
+    getPosts(),
+    getServerSession(authOptions),
+  ]);
+
   const latest = posts.slice(0, 6);
 
   return (
-    <div className="main-container">
-      <div className="main-background">
-        <div className="glow-effect glow-1"></div>
-        <div className="glow-effect glow-2"></div>
-        <div className="glow-effect glow-3"></div>
-      </div>
+    <div className="home-page">
+      <section className="container home-hero">
+        <div className="home-copy">
+          <div className="home-badge">GameHelp • форум игроков</div>
 
-      <div className="nav-container">
-        <div className="nav-content">
-          <div className="logo-wrapper">
-            <div className="logo-icon">
-              <Image
-                src="/fox.png" // ✅ Добавляем картинку
-                alt="GameHub Logo"
-                width={32}
-                height={32}
-                className="logo-image"
-                priority // ✅ Приоритетная загрузка для логотипа
-              />
-            </div>
-            <div className="logo-text">GameHub</div>
+          <h1 className="home-title">
+            Игровое сообщество, где можно
+            <span> спросить, обсудить и найти команду</span>
+          </h1>
+
+          <p className="home-subtitle">
+            GameHelp — это место, где игроки делятся гайдами, обсуждают игры,
+            ищут друзей, переписываются и помогают друг другу с любыми игровыми вопросами.
+          </p>
+
+          <div className="home-actions">
+            {session ? (
+              <>
+                <Link href="/posts" className="home-button primary">
+                  Открыть форум
+                </Link>
+                <Link href="/profile" className="home-button secondary">
+                  Мой профиль
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/auth/register" className="home-button primary">
+                  Создать аккаунт
+                </Link>
+                <Link href="/auth/login" className="home-button secondary">
+                  Войти
+                </Link>
+              </>
+            )}
           </div>
-          <div className="nav-links">
-            <Link href="/auth/login" className="nav-btn nav-login">
-              Войти
-            </Link>
-            <Link href="/auth/register" className="nav-btn nav-register">
-              Регистрация
-            </Link>
+
+          <div className="home-grid-stats">
+            <div className="home-stat">
+              <div className="home-stat-value">{posts.length}</div>
+              <div className="home-stat-label">постов на форуме</div>
+            </div>
+            <div className="home-stat">
+              <div className="home-stat-value">{latest.length}</div>
+              <div className="home-stat-label">свежих тем</div>
+            </div>
+            <div className="home-stat">
+              <div className="home-stat-value">24/7</div>
+              <div className="home-stat-label">живое общение</div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="main-content">
-        <div className="hero-section">
-          <div className="hero-text">
-            <h1 className="hero-title">
-              <span className="title-main">Сообщество</span>
-              <span className="title-gradient">истинных геймеров</span>
-            </h1>
-            <p className="hero-description">
-              Присоединяйся к крупнейшему игровому сообществу! Общайся, делитесь опытом,
-              находи новых друзей и будь в курсе всех игровых новинок.
+        <div className="home-preview">
+          <div className="home-preview-card">
+            <div className="home-preview-header">
+              <div>
+                <div className="home-preview-label">Что есть в GameHelp</div>
+                <div className="home-preview-title">Всё для игрового общения</div>
+              </div>
+            </div>
+
+            <div className="home-preview-list">
+              <div className="home-preview-item">
+                <span className="home-preview-icon">💬</span>
+                <div>
+                  <div className="home-preview-item-title">Форум и обсуждения</div>
+                  <div className="home-preview-item-text">
+                    Создавай темы, делись мнением, обсуждай любимые игры.
+                  </div>
+                </div>
+              </div>
+
+              <div className="home-preview-item">
+                <span className="home-preview-icon">🤝</span>
+                <div>
+                  <div className="home-preview-item-title">Друзья и поиск игроков</div>
+                  <div className="home-preview-item-text">
+                    Добавляй людей в друзья и находи тиммейтов.
+                  </div>
+                </div>
+              </div>
+
+              <div className="home-preview-item">
+                <span className="home-preview-icon">📨</span>
+                <div>
+                  <div className="home-preview-item-title">Личные сообщения</div>
+                  <div className="home-preview-item-text">
+                    Общайся напрямую и пересылай интересные посты друзьям.
+                  </div>
+                </div>
+              </div>
+
+              <div className="home-preview-item">
+                <span className="home-preview-icon">🎮</span>
+                <div>
+                  <div className="home-preview-item-title">Игровая тематика</div>
+                  <div className="home-preview-item-text">
+                    Платформа для советов, гайдов, обзоров и обсуждения новинок.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="container home-section">
+        <div className="home-section-header">
+          <div>
+            <div className="home-section-kicker">Возможности</div>
+            <h2 className="home-section-title">Что можно делать на сайте</h2>
+          </div>
+        </div>
+
+        <div className="home-features">
+          <article className="home-feature">
+            <div className="home-feature-icon">📝</div>
+            <h3 className="home-feature-title">Публиковать посты</h3>
+            <p className="home-feature-text">
+              Делись обзорами, вопросами, новостями, мнением об играх и любыми игровыми историями.
             </p>
-            <div className="stats-container">
-              <div className="stat-card">
-                <div className="stat-icon">🎮</div>
-                <div className="stat-content">
-                  <div className="stat-number">10K+</div>
-                  <div className="stat-label">Игроков онлайн</div>
+          </article>
+
+          <article className="home-feature">
+            <div className="home-feature-icon">💬</div>
+            <h3 className="home-feature-title">Комментировать и отвечать</h3>
+            <p className="home-feature-text">
+              Обсуждай посты, ставь реакции и участвуй в ветках комментариев.
+            </p>
+          </article>
+
+          <article className="home-feature">
+            <div className="home-feature-icon">👥</div>
+            <h3 className="home-feature-title">Находить друзей</h3>
+            <p className="home-feature-text">
+              Ищи пользователей, добавляй их в друзья и собирай своё игровое окружение.
+            </p>
+          </article>
+
+          <article className="home-feature">
+            <div className="home-feature-icon">🔔</div>
+            <h3 className="home-feature-title">Не пропускать сообщения</h3>
+            <p className="home-feature-text">
+              В навигации виден индикатор новых сообщений, чтобы сразу замечать активность.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section className="container home-section">
+        <div className="home-section-header">
+          <div>
+            <div className="home-section-kicker">Форум</div>
+            <h2 className="home-section-title">Последние посты</h2>
+          </div>
+
+          <Link href="/posts" className="home-section-link">
+            Все посты →
+          </Link>
+        </div>
+
+        {latest.length === 0 ? (
+          <div className="home-empty">
+            Пока нет постов. После регистрации можно создать первую тему.
+          </div>
+        ) : (
+          <div className="home-posts-grid">
+            {latest.map((post) => (
+              <Link key={post.id} href={`/posts/${post.slug}`} className="home-post-card">
+                {post.coverImage ? (
+                  <img
+                    src={post.coverImage}
+                    alt={post.title}
+                    className="home-post-cover"
+                  />
+                ) : (
+                  <div className="home-post-cover placeholder">🎮</div>
+                )}
+
+                <div className="home-post-body">
+                  <div className="home-post-meta">
+                    {post.author?.username ?? "Пользователь"}
+                    {post.category?.title ? ` • ${post.category.title}` : ""}
+                  </div>
+
+                  <div className="home-post-title">{post.title}</div>
+                  <div className="home-post-excerpt">{getExcerpt(post.content)}</div>
+
+                  {post.tags?.length ? (
+                    <div className="home-post-tags">
+                      {post.tags.slice(0, 4).map((tag) => (
+                        <span key={tag.id} className="home-post-tag">
+                          #{tag.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon">💬</div>
-                <div className="stat-content">
-                  <div className="stat-number">50K+</div>
-                  <div className="stat-label">Обсуждений</div>
-                </div>
-              </div>
-            </div>
+              </Link>
+            ))}
           </div>
-          
-          <div className="hero-panel">
-            <div className="panel-container">
-              <div className="panel-badge">
-                <Image
-                  src="/fox.png" // ✅ Добавляем иконку
-                  alt="GameHub"
-                  width={48}
-                  height={48}
-                  className="panel-badge-image"
-                />
-              </div>
-              <div className="panel-header">
-                <h2 className="panel-title">Присоединяйся к нам</h2>
-                <p className="panel-subtitle">Стань частью сообщества</p>
-              </div>
-              
-              <div className="auth-options">
-                <Link href="/auth/login" className="auth-option auth-login">
-                  <div className="option-title">Войти</div>
-                  <div className="option-subtitle">В существующий аккаунт</div>
-                </Link>
-                <Link href="/auth/register" className="auth-option auth-register">
-                  <div className="option-title">Регистрация</div>
-                  <div className="option-subtitle">Создать новый аккаунт</div>
-                </Link>
-              </div>
-              
-              <div className="social-divider">Или через социальные сети</div>
-              
-              <div className="social-buttons">
-                <button className="social-btn social-google">
-                  <div className="social-icon-wrapper">
-                    <Image
-                      src="/google.png" // ✅ Добавляем Google иконку
-                      alt="Google"
-                      width={20}
-                      height={20}
-                      className="social-icon"
-                    />
-                  </div>
-                  <span>Google</span>
-                </button>
-                
-                <button className="social-btn social-yandex">
-                  <div className="social-icon-wrapper">
-                    <Image
-                      src="/yandex.png" // ✅ Добавляем Яндекс иконку
-                      alt="Yandex"
-                      width={20}
-                      height={20}
-                      className="social-icon"
-                    />
-                  </div>
-                  <span>Яндекс</span>
-                </button>
-                
-                <button className="social-btn social-steam">
-                  <div className="social-icon-wrapper">
-                    <Image
-                      src="/steam.png" // ✅ Добавляем Steam иконку
-                      alt="Steam"
-                      width={20}
-                      height={20}
-                      className="social-icon"
-                    />
-                  </div>
-                  <span>Steam</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
+      </section>
 
-        <div className="features-section">
-          <h2 className="features-title">Что вас ждет</h2>
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-category">Общение</div>
-              <h3 className="feature-name">Игровые форумы</h3>
-              <p className="feature-desc">
-                Общайтесь с другими игроками, делитесь впечатлениями и находите
-                единомышленников по любимым играм.
-              </p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-category">Сообщество</div>
-              <h3 className="feature-name">Группы и кланы</h3>
-              <p className="feature-desc">
-                Создавайте собственные группы, находите команду для совместной игры
-                или станьте частью существующего сообщества.
-              </p>
-            </div>
-            <div className="feature-card">
-              <div className="feature-category">Новости</div>
-              <h3 className="feature-name">Актуальные обновления</h3>
-              <p className="feature-desc">
-                Будьте в курсе последних игровых новостей, обновлений и событий в
-                игровом мире.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="latest-posts-section">
-          <div className="latest-posts-header">
-            <h2 className="features-title">Последние посты</h2>
-            <Link className="latest-posts-link" href="/posts">
-              Все посты →
-            </Link>
+      <section className="container home-cta">
+        <div className="home-cta-card">
+          <div>
+            <div className="home-section-kicker">GameHelp</div>
+            <h2 className="home-section-title">Готов начать общение?</h2>
+            <p className="home-cta-text">
+              Зарегистрируйся, публикуй посты, комментируй темы, добавляй друзей и общайся с игроками.
+            </p>
           </div>
 
-          {latest.length === 0 ? (
-            <div className="latest-posts-empty">
-              Пока нет постов. <Link href="/posts/new">Создать первый</Link>
-            </div>
-          ) : (
-            <div className="latest-posts-grid">
-              {latest.map((p) => (
-                <Link key={p.id} href={`/posts/${p.slug}`} className="post-card">
-                  <div className="post-title">{p.title}</div>
-                  <div className="post-meta">
-                    {p.author.username}
-                    {p.category ? ` • ${p.category.title}` : ""}
-                  </div>
-                  <div className="post-excerpt">
-                    {p.content.length > 160 ? p.content.slice(0, 160) + "…" : p.content}
-                  </div>
+          <div className="home-cta-actions">
+            {session ? (
+              <>
+                <Link href="/posts/new" className="home-button primary">
+                  Создать пост
                 </Link>
-              ))}
-            </div>
-          )}
+                <Link href="/messages" className="home-button secondary">
+                  Сообщения
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/auth/register" className="home-button primary">
+                  Зарегистрироваться
+                </Link>
+                <Link href="/auth/login" className="home-button secondary">
+                  Войти в аккаунт
+                </Link>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

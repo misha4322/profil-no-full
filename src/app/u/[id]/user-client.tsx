@@ -1,22 +1,16 @@
 "use client";
 
-<<<<<<< HEAD
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { apiRequest } from "@/lib/api";
 import styles from "./UserClient.module.css";
 
-async function readJsonSafe(res: Response) {
-  const text = await res.text();
-
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`Сервер вернул не JSON. Проверь маршрут: ${res.url}`);
-  }
-}
-
 function splitFavoriteGames(value: string | null | undefined) {
-  if (!value) return [];
+  if (!value) {
+    return [];
+  }
+
   return value
     .split(/[\n,]/g)
     .map((item) => item.trim())
@@ -33,54 +27,24 @@ export default function UserClient({
   const [data, setData] = useState<any>(null);
   const [message, setMessage] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       setMessage("");
 
-      const url = viewerId
-        ? `/api/users/${userId}?viewerId=${encodeURIComponent(viewerId)}`
-        : `/api/users/${userId}`;
+      const result = await apiRequest(`/users/${userId}`, {
+        query: viewerId ? { viewerId } : undefined,
+      });
 
-      const res = await fetch(url, { cache: "no-store" });
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка загрузки профиля");
-      }
-
-      setData(json);
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка");
+      setData(result);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Ошибка";
+      setMessage(text);
     }
-=======
-import { useEffect, useState } from "react";
-
-type UserResp = {
-  user: { id: string; username: string; avatarUrl: string | null; isProfilePrivate: boolean };
-  canView: boolean;
-  friendStatus: "self" | "friends" | "incoming" | "outgoing" | "none";
-};
-
-export default function UserProfileClient({ userId }: { userId: string }) {
-  const [data, setData] = useState<UserResp | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
-
-  async function load() {
-    setMsg(null);
-    const res = await fetch(`/api/users/${userId}`, { cache: "no-store" });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setMsg(j?.error ?? "Ошибка");
-      return;
-    }
-    setData(j);
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
-  }
+  }, [userId, viewerId]);
 
   useEffect(() => {
-    load();
-<<<<<<< HEAD
-  }, [userId, viewerId]);
+    void load();
+  }, [load]);
 
   async function addFriend() {
     if (!viewerId) {
@@ -89,29 +53,29 @@ export default function UserProfileClient({ userId }: { userId: string }) {
     }
 
     try {
-      const res = await fetch("/api/friends/request", {
+      const result = await apiRequest("/friends/request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: viewerId, targetId: userId }),
+        body: JSON.stringify({
+          userId: viewerId,
+          targetId: userId,
+        }),
       });
 
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка отправки заявки");
-      }
-
-      if (json?.status === "incoming") {
-        setMessage(json?.message || "Есть входящая заявка — нажми принять.");
-      } else if (json?.status === "accepted") {
+      if (result.status === "incoming") {
+        setMessage(
+          result.message ??
+            "У вас уже есть входящая заявка от этого пользователя."
+        );
+      } else if (result.status === "accepted") {
         setMessage("Вы уже друзья ✅");
       } else {
         setMessage("Заявка отправлена ⏳");
       }
 
       await load();
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка");
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Ошибка";
+      setMessage(text);
     }
   }
 
@@ -122,22 +86,19 @@ export default function UserProfileClient({ userId }: { userId: string }) {
     }
 
     try {
-      const res = await fetch("/api/friends/accept", {
+      await apiRequest("/friends/accept", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: viewerId, requesterId: userId }),
+        body: JSON.stringify({
+          userId: viewerId,
+          requesterId: userId,
+        }),
       });
-
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка принятия заявки");
-      }
 
       setMessage("Заявка принята ✅");
       await load();
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка");
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Ошибка";
+      setMessage(text);
     }
   }
 
@@ -148,22 +109,19 @@ export default function UserProfileClient({ userId }: { userId: string }) {
     }
 
     try {
-      const res = await fetch("/api/friends/remove", {
+      await apiRequest("/friends/remove", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: viewerId, targetId: userId }),
+        body: JSON.stringify({
+          userId: viewerId,
+          targetId: userId,
+        }),
       });
-
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка удаления");
-      }
 
       setMessage("Пользователь удалён из друзей");
       await load();
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка");
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Ошибка";
+      setMessage(text);
     }
   }
 
@@ -217,7 +175,7 @@ export default function UserProfileClient({ userId }: { userId: string }) {
                 <button
                   type="button"
                   className={styles.dangerButton}
-                  onClick={removeFriend}
+                  onClick={() => void removeFriend()}
                 >
                   Удалить из друзей
                 </button>
@@ -226,7 +184,7 @@ export default function UserProfileClient({ userId }: { userId: string }) {
               <button
                 type="button"
                 className={styles.primaryButton}
-                onClick={acceptFriend}
+                onClick={() => void acceptFriend()}
               >
                 Принять заявку
               </button>
@@ -235,7 +193,11 @@ export default function UserProfileClient({ userId }: { userId: string }) {
                 Заявка отправлена
               </button>
             ) : (
-              <button type="button" className={styles.primaryButton} onClick={addFriend}>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                onClick={() => void addFriend()}
+              >
                 Добавить в друзья
               </button>
             )}
@@ -271,7 +233,6 @@ export default function UserProfileClient({ userId }: { userId: string }) {
               ) : (
                 <span>Профиль открытый</span>
               )}
-              {user.friendCode ? <span>Код друга: {user.friendCode}</span> : null}
               {user.email ? <span>Email: {user.email}</span> : null}
             </div>
           </div>
@@ -360,7 +321,9 @@ export default function UserProfileClient({ userId }: { userId: string }) {
               <h2 className={styles.sectionTitle}>Последние посты</h2>
 
               {recentPosts.length === 0 ? (
-                <div className={styles.emptyBox}>У пользователя пока нет опубликованных постов.</div>
+                <div className={styles.emptyBox}>
+                  У пользователя пока нет опубликованных постов.
+                </div>
               ) : (
                 <div className={styles.postsGrid}>
                   {recentPosts.map((post: any) => (
@@ -383,117 +346,6 @@ export default function UserProfileClient({ userId }: { userId: string }) {
                   ))}
                 </div>
               )}
-=======
-  }, [userId]);
-
-  async function addFriend() {
-    const res = await fetch("/api/friends/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetId: userId }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) setMsg(j?.error ?? "Ошибка");
-    else if (j?.status === "incoming") setMsg(j?.message ?? "Есть входящая заявка — нажмите «Принять»");
-    await load();
-  }
-
-  async function acceptFriend() {
-    const res = await fetch("/api/friends/accept", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requesterId: userId }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) setMsg(j?.error ?? "Ошибка");
-    await load();
-  }
-
-  async function removeFriend() {
-    const res = await fetch("/api/friends/remove", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ targetId: userId }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) setMsg(j?.error ?? "Ошибка");
-    await load();
-  }
-
-  if (msg) return <div style={{ padding: 24, color: "white" }}>{msg}</div>;
-  if (!data) return <div style={{ padding: 24, color: "white" }}>Загрузка...</div>;
-
-  const { user, canView, friendStatus } = data;
-
-  return (
-    <div style={{ padding: 24, color: "white" }}>
-      {/* ✅ Аватар и ник всегда */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        {user.avatarUrl ? (
-          // проще и надежнее чем next/image (без remotePatterns)
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={user.avatarUrl}
-            alt={user.username}
-            style={{ width: 64, height: 64, borderRadius: 16, objectFit: "cover" }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 16,
-              background: "rgba(255,255,255,0.1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 900,
-              fontSize: 24,
-            }}
-          >
-            {(user.username?.[0] ?? "U").toUpperCase()}
-          </div>
-        )}
-
-        <div>
-          <div style={{ fontSize: 26, fontWeight: 900 }}>{user.username}</div>
-          <div style={{ opacity: 0.75 }}>ID: {user.id}</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 18 }}>
-        {!canView ? (
-          <>
-            <p>🔒 Профиль закрыт. Откроется после дружбы.</p>
-
-            {friendStatus === "incoming" ? (
-              <button onClick={acceptFriend}>✅ Принять заявку</button>
-            ) : friendStatus === "outgoing" ? (
-              <button disabled>⏳ Заявка отправлена</button>
-            ) : friendStatus === "friends" ? (
-              <button onClick={removeFriend}>❌ Удалить из друзей</button>
-            ) : friendStatus === "self" ? null : (
-              <button onClick={addFriend}>➕ Добавить в друзья</button>
-            )}
-          </>
-        ) : (
-          <>
-            <p>Профиль открыт ✅</p>
-
-            {friendStatus === "friends" ? (
-              <button onClick={removeFriend}>❌ Удалить из друзей</button>
-            ) : friendStatus === "incoming" ? (
-              <button onClick={acceptFriend}>✅ Принять заявку</button>
-            ) : friendStatus === "outgoing" ? (
-              <button disabled>⏳ Заявка отправлена</button>
-            ) : friendStatus === "self" ? null : (
-              <button onClick={addFriend}>➕ Добавить в друзья</button>
-            )}
-
-            {/* тут уже твоя реальная инфа профиля */}
-            <div style={{ marginTop: 14, opacity: 0.85 }}>
-              Тут будет контент профиля (игры, достижения и т.д.)
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
             </div>
           </>
         )}

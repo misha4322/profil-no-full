@@ -1,19 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-<<<<<<< HEAD
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+
+import { apiRequest } from "@/lib/api";
 import styles from "./SettingsClient.module.css";
-
-async function readJsonSafe(res: Response) {
-  const text = await res.text();
-
-  try {
-    return text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(`Сервер вернул не JSON. Проверь маршрут: ${res.url}`);
-  }
-}
 
 type SettingsUser = {
   id: string;
@@ -30,10 +21,12 @@ type SettingsUser = {
   steamProfileUrl: string | null;
   favoriteGames: string | null;
   showEmail: boolean;
-  showFriendCode: boolean;
-  friendCode: string | null;
   isProfilePrivate: boolean;
   createdAt: string | null;
+};
+
+type SettingsResponse = {
+  user: SettingsUser;
 };
 
 export default function SettingsClient({ userId }: { userId: string }) {
@@ -41,22 +34,11 @@ export default function SettingsClient({ userId }: { userId: string }) {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
-=======
-
-type MeResponse = {
-  user: { id: string; username: string; email: string | null; avatarUrl: string | null };
-};
-
-export default function SettingsClient() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState<string | null>(null);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-<<<<<<< HEAD
   const [profileBannerUrl, setProfileBannerUrl] = useState<string | null>(null);
 
   const [statusText, setStatusText] = useState("");
@@ -69,9 +51,7 @@ export default function SettingsClient() {
   const [favoriteGames, setFavoriteGames] = useState("");
 
   const [showEmail, setShowEmail] = useState(false);
-  const [showFriendCode, setShowFriendCode] = useState(true);
   const [isProfilePrivate, setIsProfilePrivate] = useState(false);
-  const [friendCode, setFriendCode] = useState<string | null>(null);
 
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
@@ -80,36 +60,27 @@ export default function SettingsClient() {
 
   const [message, setMessage] = useState("");
 
-  const avatarSrc = useMemo(
-    () => avatarPreview ?? avatarUrl,
-    [avatarPreview, avatarUrl]
-  );
-
+  const avatarSrc = useMemo(() => avatarPreview ?? avatarUrl, [avatarPreview, avatarUrl]);
   const bannerSrc = useMemo(
     () => bannerPreview ?? profileBannerUrl,
     [bannerPreview, profileBannerUrl]
   );
-=======
-  const [localPreview, setLocalPreview] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-
-  const previewSrc = useMemo(() => localPreview ?? avatarUrl, [localPreview, avatarUrl]);
-
-  const [msg, setMsg] = useState<string | null>(null);
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+
+    async function load() {
       try {
-<<<<<<< HEAD
-        const res = await fetch(`/api/users/me/${userId}`, { cache: "no-store" });
-        const json = await readJsonSafe(res);
+        setLoading(true);
+        setMessage("");
 
-        if (!res.ok) {
-          throw new Error(json?.error || "Ошибка загрузки профиля");
-        }
+        const data = await apiRequest<SettingsResponse>(`/users/me/${userId}`, {
+          method: "GET",
+        });
 
-        const user = json.user as SettingsUser;
+        if (cancelled) return;
+
+        const user = data.user;
 
         setUsername(user.username ?? "");
         setEmail(user.email ?? null);
@@ -124,29 +95,26 @@ export default function SettingsClient() {
         setSteamProfileUrl(user.steamProfileUrl ?? "");
         setFavoriteGames(user.favoriteGames ?? "");
         setShowEmail(!!user.showEmail);
-        setShowFriendCode(!!user.showFriendCode);
         setIsProfilePrivate(!!user.isProfilePrivate);
-        setFriendCode(user.friendCode ?? null);
-      } catch (error: any) {
-        setMessage(error?.message || "Ошибка загрузки");
-=======
-        const res = await fetch("/api/users/me", { cache: "no-store" });
-        if (!res.ok) throw new Error("Failed to load profile");
-        const data: MeResponse = await res.json();
-        setUsername(data.user.username);
-        setEmail(data.user.email);
-        setAvatarUrl(data.user.avatarUrl);
-      } catch (e: any) {
-        setMsg(e?.message ?? "Ошибка загрузки профиля");
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
+      } catch (error) {
+        if (cancelled) return;
+        setMessage(error instanceof Error ? error.message : "Ошибка загрузки настроек");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    })();
-<<<<<<< HEAD
+    }
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
-  async function uploadSingle(file: File, setUploading: (v: boolean) => void) {
+  async function uploadSingle(
+    file: File,
+    setUploading: (value: boolean) => void
+  ) {
     setUploading(true);
 
     try {
@@ -158,18 +126,29 @@ export default function SettingsClient() {
         body: form,
       });
 
-      const json = await readJsonSafe(res);
+      const text = await res.text();
+      let json: any = {};
 
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка загрузки файла");
+      if (text) {
+        try {
+          json = JSON.parse(text);
+        } catch {
+          throw new Error("Сервер загрузки вернул не JSON");
+        }
       }
 
-      const url = json?.urls?.[0] ?? null;
-      if (!url) {
+      if (!res.ok) {
+        throw new Error(
+          typeof json?.error === "string" ? json.error : "Ошибка загрузки файла"
+        );
+      }
+
+      const url = Array.isArray(json?.urls) ? json.urls[0] : null;
+      if (!url || typeof url !== "string") {
         throw new Error("Upload вернул пустой url");
       }
 
-      return url as string;
+      return url;
     } finally {
       setUploading(false);
     }
@@ -185,8 +164,8 @@ export default function SettingsClient() {
       setAvatarPreview(null);
       setAvatarFile(null);
       setMessage("Аватар загружен. Нажми «Сохранить изменения».");
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка загрузки аватара");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ошибка загрузки аватара");
     }
   }
 
@@ -200,31 +179,8 @@ export default function SettingsClient() {
       setBannerPreview(null);
       setBannerFile(null);
       setMessage("Баннер загружен. Нажми «Сохранить изменения».");
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка загрузки баннера");
-    }
-  }
-
-  async function regenerateFriendCode() {
-    try {
-      setMessage("");
-
-      const res = await fetch("/api/users/me/friend-code/regenerate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
-      });
-
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка обновления friend code");
-      }
-
-      setFriendCode(json.friendCode ?? null);
-      setMessage("Код друга обновлён ✅");
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка обновления friend code");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ошибка загрузки баннера");
     }
   }
 
@@ -233,9 +189,8 @@ export default function SettingsClient() {
       setSaving(true);
       setMessage("");
 
-      const res = await fetch("/api/users/me", {
+      await apiRequest(`/users/me`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
           username,
@@ -250,69 +205,13 @@ export default function SettingsClient() {
           steamProfileUrl: steamProfileUrl || null,
           favoriteGames: favoriteGames || null,
           showEmail,
-          showFriendCode,
           isProfilePrivate,
         }),
       });
 
-      const json = await readJsonSafe(res);
-
-      if (!res.ok) {
-        throw new Error(json?.error || "Ошибка сохранения");
-      }
-
-      setFriendCode(json?.user?.friendCode ?? friendCode);
       setMessage("Профиль сохранён ✅");
-    } catch (error: any) {
-      setMessage(error?.message || "Ошибка сохранения");
-=======
-  }, []);
-
-  async function uploadAvatar() {
-    if (!selectedFile) return;
-
-    setMsg(null);
-    const form = new FormData();
-    form.append("file", selectedFile);
-
-    const res = await fetch("/api/upload", { method: "POST", body: form });
-    const data = await res.json();
-
-    if (!res.ok) {
-      setMsg(data?.error ?? "Ошибка загрузки файла");
-      return;
-    }
-
-    const url = data?.urls?.[0] as string | undefined;
-    if (!url) {
-      setMsg("Upload: пустой ответ");
-      return;
-    }
-
-    setAvatarUrl(url);
-    setLocalPreview(null);
-    setSelectedFile(null);
-    setMsg("Аватар загружен. Не забудь нажать «Сохранить».");
-  }
-
-  async function save() {
-    setSaving(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/users/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, avatarUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg(data?.error ?? "Ошибка сохранения");
-        return;
-      }
-      setMsg("Сохранено ✅ (профиль обновится сразу)");
-    } catch (e: any) {
-      setMsg(e?.message ?? "Ошибка сохранения");
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Ошибка сохранения");
     } finally {
       setSaving(false);
     }
@@ -320,26 +219,20 @@ export default function SettingsClient() {
 
   if (loading) {
     return (
-<<<<<<< HEAD
       <div className={styles.page}>
         <div className={styles.box}>Загрузка настроек...</div>
-=======
-      <div className="settings-wrap">
-        <div className="settings-card">Загрузка...</div>
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
       </div>
     );
   }
 
   return (
-<<<<<<< HEAD
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.header}>
           <div>
             <h1 className={styles.title}>Настройки профиля</h1>
             <p className={styles.subtitle}>
-              Здесь настраиваются приватность, внешний вид профиля и данные для отображения.
+              Здесь редактируются данные профиля, изображения и приватность.
             </p>
           </div>
 
@@ -367,51 +260,21 @@ export default function SettingsClient() {
                 onChange={(e) => {
                   const file = e.target.files?.[0] ?? null;
                   setBannerFile(file);
+
                   if (file) {
                     setBannerPreview(URL.createObjectURL(file));
                   } else {
                     setBannerPreview(null);
                   }
-=======
-    <div className="settings-wrap">
-      <div className="settings-card">
-        <h1 className="settings-title">Настройки профиля</h1>
-
-        <div className="settings-row">
-          <div className="settings-avatar">
-            {previewSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={previewSrc} alt="avatar" className="avatar-img" />
-            ) : (
-              <div className="avatar-placeholder">
-                {(username?.[0] ?? "G").toUpperCase()}
-              </div>
-            )}
-          </div>
-
-          <div className="settings-avatar-actions">
-            <label className="btn">
-              Выбрать фото
-              <input
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  setSelectedFile(f);
-                  setMsg(null);
-                  if (f) setLocalPreview(URL.createObjectURL(f));
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
                 }}
               />
             </label>
 
-<<<<<<< HEAD
             <button
               type="button"
               className={styles.secondaryButton}
               disabled={!bannerFile || uploadingBanner}
-              onClick={uploadBanner}
+              onClick={() => void uploadBanner()}
             >
               {uploadingBanner ? "Загрузка..." : "Загрузить баннер"}
             </button>
@@ -454,6 +317,7 @@ export default function SettingsClient() {
                     onChange={(e) => {
                       const file = e.target.files?.[0] ?? null;
                       setAvatarFile(file);
+
                       if (file) {
                         setAvatarPreview(URL.createObjectURL(file));
                       } else {
@@ -467,7 +331,7 @@ export default function SettingsClient() {
                   type="button"
                   className={styles.secondaryButton}
                   disabled={!avatarFile || uploadingAvatar}
-                  onClick={uploadAvatar}
+                  onClick={() => void uploadAvatar()}
                 >
                   {uploadingAvatar ? "Загрузка..." : "Загрузить"}
                 </button>
@@ -509,15 +373,6 @@ export default function SettingsClient() {
               <span>Показывать email в профиле</span>
             </label>
 
-            <label className={styles.checkboxLabel}>
-              <input
-                type="checkbox"
-                checked={showFriendCode}
-                onChange={(e) => setShowFriendCode(e.target.checked)}
-              />
-              <span>Показывать friend code</span>
-            </label>
-
             <div className={styles.field}>
               <label className={styles.label}>Email аккаунта</label>
               <input
@@ -526,25 +381,6 @@ export default function SettingsClient() {
                 className={styles.input}
                 placeholder="Email"
               />
-            </div>
-
-            <div className={styles.field}>
-              <label className={styles.label}>Код друга</label>
-              <div className={styles.inlineRow}>
-                <input
-                  value={friendCode ?? ""}
-                  readOnly
-                  className={styles.input}
-                  placeholder="Код друга"
-                />
-                <button
-                  type="button"
-                  className={styles.secondaryButton}
-                  onClick={regenerateFriendCode}
-                >
-                  Обновить
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -655,50 +491,11 @@ export default function SettingsClient() {
             type="button"
             className={styles.primaryButton}
             disabled={saving}
-            onClick={save}
+            onClick={() => void save()}
           >
             {saving ? "Сохранение..." : "Сохранить изменения"}
           </button>
         </div>
-=======
-            <button className="btn btn-primary" onClick={uploadAvatar} disabled={!selectedFile}>
-              Загрузить
-            </button>
-
-            <button
-              className="btn btn-danger"
-              onClick={() => {
-                setAvatarUrl(null);
-                setLocalPreview(null);
-                setSelectedFile(null);
-                setMsg("Аватар сброшен. Нажми «Сохранить».");
-              }}
-            >
-              Удалить
-            </button>
-
-            <div className="hint">PNG/JPG/WEBP до 5MB</div>
-          </div>
-        </div>
-
-
-        <div className="field">
-          <div className="label">Никнейм</div>
-          <input
-            className="input"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="Например: MishNef"
-          />
-          <div className="hint">3-32 символа, только a-z A-Z 0-9 _ -</div>
-        </div>
-
-        {msg && <div className="msg">{msg}</div>}
-
-        <button className="btn btn-save" onClick={save} disabled={saving}>
-          {saving ? "Сохранение..." : "Сохранить"}
-        </button>
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
       </div>
     </div>
   );

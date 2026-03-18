@@ -15,10 +15,7 @@ export default function SharePostButton({
   });
 
   return (
-    <Link
-      href={`/messages?${params.toString()}`}
-      className="px-3 py-2 rounded-xl border text-sm bg-white/5 border-white/10 hover:bg-white/10"
-    >
+    <Link href={`/messages?${params.toString()}`} className="post-share-button">
       💬 Отправить другу
     </Link>
   );

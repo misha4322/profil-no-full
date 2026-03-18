@@ -35,11 +35,7 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
-<<<<<<< HEAD
 , "src/server/api/upload"  ],
-=======
-  ],
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
   "exclude": [
     "node_modules"
   ]

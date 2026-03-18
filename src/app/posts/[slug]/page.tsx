@@ -1,27 +1,9 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 import Comments from "@/app/auth/components/Comments";
 import PostReactions from "@/app/auth/components/PostReactions";
-<<<<<<< HEAD
 import SharePostButton from "@/app/posts/SharePostButton";
-=======
-
-type Post = {
-  id: string;
-  slug: string;
-  title: string;
-  content: string;
-  createdAt: string | null;
-  coverImage: string | null;
-  author: { id: string; username: string; avatarUrl: string | null };
-  category: { id: string; title: string } | null;
-  tags: { id: string; name: string }[];
-  likeCount: number;
-  dislikeCount: number;
-  likedByMe: boolean;
-  dislikedByMe: boolean;
-};
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 
 async function getBaseUrl() {
   const h = await headers();
@@ -29,33 +11,31 @@ async function getBaseUrl() {
   const proto =
     h.get("x-forwarded-proto") ??
     (process.env.NODE_ENV === "development" ? "http" : "https");
-<<<<<<< HEAD
 
   return `${proto}://${host}`;
 }
 
 async function getPost(slug: string) {
-=======
-  return `${proto}://${host}`;
-}
-
-async function getPost(slug: string): Promise<Post> {
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
   const base = await getBaseUrl();
   const res = await fetch(`${base}/api/posts/${encodeURIComponent(slug)}`, {
     cache: "no-store",
   });
 
+  if (res.status === 404) {
+    return null;
+  }
+
   if (!res.ok) {
     throw new Error("Failed to load post");
   }
 
-  const data = await res.json();
-<<<<<<< HEAD
+  const data = await res.json().catch(() => null);
+
+  if (!data || !data.post) {
+    return null;
+  }
+
   return data.post;
-=======
-  return data.post as Post;
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 }
 
 export default async function PostPage(props: {
@@ -64,78 +44,126 @@ export default async function PostPage(props: {
   const { slug } = await props.params;
   const post = await getPost(slug);
 
+  if (!post) {
+    notFound();
+  }
+
+  const authorHref = post.author?.id ? `/u/${post.author.id}` : null;
+
   return (
     <div className="post-page">
-      <div className="container">
-        <div className="post-navigation">
-          <Link href="/posts" className="post-nav-link">
-            ← К постам
-          </Link>
-          <Link href="/" className="post-nav-link">
-            Главная
-          </Link>
-        </div>
-
-        <h1 className="post-title">{post.title}</h1>
-
-        <div className="post-meta">
-          Автор: {post.author.username}
-          {post.category ? ` • Игра: ${post.category.title}` : ""}
-        </div>
-
-        {post.tags?.length ? (
-          <div className="post-tags">
-<<<<<<< HEAD
-            {post.tags.map((tag: any) => (
-              <span key={tag.id} className="post-tag">
-                #{tag.name}
-=======
-            {post.tags.map((t) => (
-              <span key={t.id} className="post-tag">
-                #{t.name}
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
-              </span>
-            ))}
+      <div className="container post-layout">
+        <div className="post-main">
+          <div className="post-navigation">
+            <Link href="/posts" className="post-nav-link">
+              ← К постам
+            </Link>
+            <Link href="/" className="post-nav-link">
+              Главная
+            </Link>
           </div>
-        ) : null}
 
-        {post.coverImage && (
-<<<<<<< HEAD
-=======
-          // eslint-disable-next-line @next/next/no-img-element
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
-          <img
-            src={post.coverImage}
-            alt="Обложка поста"
-            className="mt-4 rounded-2xl w-full max-h-[420px] object-cover border border-white/10"
-          />
-        )}
+          <article className="post-hero-card">
+            {post.coverImage ? (
+              <img
+                src={post.coverImage}
+                alt={post.title ?? "Обложка поста"}
+                className="post-cover"
+              />
+            ) : null}
 
-        <div className="post-content">{post.content}</div>
+            <div className="post-hero-body">
+              <h1 className="post-title">{post.title}</h1>
 
-<<<<<<< HEAD
-        <div className="flex items-center gap-3 mt-6 flex-wrap">
-          <PostReactions
-            slug={slug}
-            likeCount={post.likeCount}
-            dislikeCount={post.dislikeCount}
-            likedByMe={post.likedByMe}
-            dislikedByMe={post.dislikedByMe}
-          />
+              <div className="post-meta">
+                <span>
+                  Автор:{" "}
+                  {authorHref ? (
+                    <Link href={authorHref} className="post-author-link">
+                      {post.author?.username ?? "Пользователь"}
+                    </Link>
+                  ) : (
+                    <span>{post.author?.username ?? "Пользователь"}</span>
+                  )}
+                </span>
 
-          <SharePostButton postId={post.id} title={post.title} />
+                {post.category ? <span>Игра: {post.category.title}</span> : null}
+
+                {post.createdAt ? (
+                  <span>
+                    Опубликовано: {new Date(post.createdAt).toLocaleString("ru-RU")}
+                  </span>
+                ) : null}
+              </div>
+
+              {post.tags?.length ? (
+                <div className="post-tags">
+                  {post.tags.map((tag: any) => (
+                    <span key={tag.id} className="post-tag">
+                      #{tag.name}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="post-action-row">
+                <PostReactions
+                  slug={slug}
+                  likeCount={Number(post.likeCount) || 0}
+                  dislikeCount={Number(post.dislikeCount) || 0}
+                  likedByMe={!!post.likedByMe}
+                  dislikedByMe={!!post.dislikedByMe}
+                />
+
+                <SharePostButton postId={post.id} title={post.title} />
+              </div>
+            </div>
+          </article>
+
+          <section className="post-content-card">
+            <div className="post-content">{post.content}</div>
+          </section>
+
+          <Comments postSlug={slug} />
         </div>
-=======
-        <PostReactions
-          slug={slug}
-          likeCount={post.likeCount}
-          dislikeCount={post.dislikeCount}
-          likedByMe={post.likedByMe}
-          dislikedByMe={post.dislikedByMe}
-        />
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 
-        <Comments postSlug={slug} />
+        <aside className="post-sidebar">
+          <div className="post-side-card">
+            <h2 className="post-side-title">О публикации</h2>
+
+            <div className="post-side-list">
+              <div className="post-side-item">
+                👍 Лайков: {Number(post.likeCount) || 0}
+              </div>
+              <div className="post-side-item">
+                👎 Дизлайков: {Number(post.dislikeCount) || 0}
+              </div>
+              <div className="post-side-item">
+                🏷️ Тегов: {Array.isArray(post.tags) ? post.tags.length : 0}
+              </div>
+            </div>
+          </div>
+
+          <div className="post-side-card">
+            <h2 className="post-side-title">Автор</h2>
+
+            <div className="post-side-list">
+              <div className="post-side-item">
+                {authorHref ? (
+                  <Link href={authorHref} className="post-author-link">
+                    {post.author?.username ?? "Пользователь"}
+                  </Link>
+                ) : (
+                  <span>{post.author?.username ?? "Пользователь"}</span>
+                )}
+              </div>
+
+              {post.category ? (
+                <div className="post-side-item">Категория: {post.category.title}</div>
+              ) : null}
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );

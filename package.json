@@ -3,22 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-<<<<<<< HEAD
     "dev": "concurrently -n next,api -c blue,magenta \"next dev\" \"tsx watch ./src/server/start.ts\"",
     "dev:web": "next dev",
     "dev:api": "tsx watch ./src/server/start.ts",
-=======
-    "dev": "next dev",
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
-<<<<<<< HEAD
     "@elysiajs/node": "^1.4.0",
-=======
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
     "bcrypt": "^6.0.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.3.1",
@@ -40,7 +33,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-<<<<<<< HEAD
     "concurrently": "^9.0.1",
     "eslint": "^9",
     "eslint-config-next": "^15.5.12",
@@ -49,11 +41,3 @@
     "typescript": "^5"
   }
 }
-=======
-    "eslint": "^9",
-    "eslint-config-next": "^15.5.12",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
-}
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d

@@ -1,4 +1,3 @@
-// app/api/auth/[...nextauth]/route.ts
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import YandexProvider from "next-auth/providers/yandex";
@@ -6,25 +5,65 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import Steam from "next-auth-steam";
 import bcrypt from "bcrypt";
 import type { NextRequest } from "next/server";
+import { and, eq, or } from "drizzle-orm";
 
 import { db } from "@/server/db";
 import { users } from "@/server/db/schema";
-import { and, eq } from "drizzle-orm";
 
 export const runtime = "nodejs";
 
-// ✅ Экспорт для getServerSession (чтобы твой /profile мог импортировать)
-export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
 
-  pages: {
-    signIn: "/auth/login",
-    signOut: "/",
-    error: "/auth/error",
-    newUser: "/auth/register",
-  },
+async function makeUniqueUsername(rawName: string) {
+  const base = rawName.trim().slice(0, 32) || "user";
 
-  providers: [
+  let username = base;
+  let i = 0;
+
+  while (true) {
+    const existing = await db.query.users.findFirst({
+      where: eq(users.username, username),
+      columns: { id: true },
+    });
+
+    if (!existing) {
+      return username;
+    }
+
+    i += 1;
+    const suffix = `_${i}`;
+    username = `${base.slice(0, Math.max(1, 32 - suffix.length))}${suffix}`;
+  }
+}
+
+async function findUserForOAuth(params: {
+  email: string | null;
+  provider: string;
+  providerId: string;
+}) {
+  const { email, provider, providerId } = params;
+
+  if (email) {
+    const byEmail = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (byEmail) {
+      return byEmail;
+    }
+  }
+
+  const byProvider = await db.query.users.findFirst({
+    where: and(eq(users.provider, provider), eq(users.providerId, providerId)),
+  });
+
+  return byProvider ?? null;
+}
+
+function buildBaseProviders() {
+  const providers: NextAuthOptions["providers"] = [
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -32,16 +71,25 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials.password) return null;
+        const email = credentials?.email ? normalizeEmail(credentials.email) : "";
+        const password = credentials?.password ?? "";
+
+        if (!email || !password) {
+          return null;
+        }
 
         const user = await db.query.users.findFirst({
-          where: eq(users.email, credentials.email),
+          where: eq(users.email, email),
         });
 
-        if (!user || !user.passwordHash) return null;
+        if (!user || !user.passwordHash) {
+          return null;
+        }
 
-        const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!isValid) return null;
+        const isValid = await bcrypt.compare(password, user.passwordHash);
+        if (!isValid) {
+          return null;
+        }
 
         return {
           id: user.id,
@@ -51,35 +99,66 @@ export const authOptions: NextAuthOptions = {
         };
       },
     }),
+  ];
 
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    providers.push(
+      GoogleProvider({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      })
+    );
+  }
 
-    YandexProvider({
-      clientId: process.env.YANDEX_CLIENT_ID!,
-      clientSecret: process.env.YANDEX_CLIENT_SECRET!,
-    }),
+  if (process.env.YANDEX_CLIENT_ID && process.env.YANDEX_CLIENT_SECRET) {
+    providers.push(
+      YandexProvider({
+        clientId: process.env.YANDEX_CLIENT_ID,
+        clientSecret: process.env.YANDEX_CLIENT_SECRET,
+      })
+    );
+  }
 
-    // ⚠️ Steam добавим ниже условно (в handler), чтобы не 500 если нет ключа
-  ],
+  return providers;
+}
+
+export const authOptions: NextAuthOptions = {
+  session: {
+    strategy: "jwt",
+  },
+
+  pages: {
+    signIn: "/auth/login",
+    signOut: "/",
+    error: "/auth/error",
+    newUser: "/auth/register",
+  },
+
+  providers: buildBaseProviders(),
 
   callbacks: {
     async signIn({ user, account, profile }) {
-      if (!account?.provider) return false;
-      if (account.provider === "credentials") return true;
+      if (!account?.provider) {
+        return false;
+      }
 
-      // Google/Yandex должны иметь email
-      if (account.provider !== "steam" && !user.email) return false;
+      if (account.provider === "credentials") {
+        return true;
+      }
 
       const provider = account.provider;
       const providerId = account.providerAccountId;
+      const email =
+        provider !== "steam" && user.email ? normalizeEmail(user.email) : null;
 
-      const existing = await db.query.users.findFirst({
-        where: user.email
-          ? eq(users.email, user.email)
-          : and(eq(users.provider, provider), eq(users.providerId, providerId)),
+      if (provider !== "steam" && !email) {
+        return false;
+      }
+
+      const existing = await findUserForOAuth({
+        email,
+        provider,
+        providerId,
       });
 
       if (!existing) {
@@ -88,21 +167,10 @@ export const authOptions: NextAuthOptions = {
           (profile as any)?.personaname ??
           `user_${provider}_${providerId.slice(0, 8)}`;
 
-        // username UNIQUE
-        let username = rawName.trim().slice(0, 32) || "user";
-        let i = 0;
-        while (true) {
-          const u = await db.query.users.findFirst({ 
-            where: eq(users.username, username) 
-          });
-          if (!u) break;
-          i += 1;
-          const suffix = `_${i}`;
-          username = (rawName.trim().slice(0, 32 - suffix.length) || "user") + suffix;
-        }
+        const username = await makeUniqueUsername(rawName);
 
         await db.insert(users).values({
-          email: user.email ?? null, // Steam => null (важно: email должен быть nullable в БД)
+          email,
           username,
           provider,
           providerId,
@@ -114,55 +182,60 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user, account }) {
-      // На первом логине есть account
-      if (account) {
-        if (account.provider === "credentials" && user) {
-          // credentials: user.id уже uuid
-          (token as any).userId = (user as any).id;
-        } else {
-          // oauth: ищем uuid в БД по email или provider/providerId
-          const provider = account.provider;
-          const providerId = account.providerAccountId;
-
-          const dbUser = await db.query.users.findFirst({
-            where: (user as any)?.email
-              ? eq(users.email, (user as any).email)
-              : and(eq(users.provider, provider), eq(users.providerId, providerId)),
-          });
-
-          if (dbUser) {
-            (token as any).userId = dbUser.id;
-          }
+      if (account?.provider) {
+        if (account.provider === "credentials" && user?.id) {
+          token.userId = user.id;
+          token.email = user.email ?? null;
+          token.name = user.name ?? null;
+          token.picture = user.image ?? null;
+          return token;
         }
-      } else if (user) {
-        // Fallback для совместимости
-        (token as any).userId = (user as any).id;
-        token.email = user.email ?? null;
+
+        const provider = account.provider;
+        const providerId = account.providerAccountId;
+        const email = user?.email ? normalizeEmail(user.email) : null;
+
+        const dbUser = await findUserForOAuth({
+          email,
+          provider,
+          providerId,
+        });
+
+        if (dbUser) {
+          token.userId = dbUser.id;
+          token.email = dbUser.email ?? token.email ?? null;
+          token.name = dbUser.username ?? token.name ?? null;
+          token.picture = dbUser.avatarUrl ?? token.picture ?? null;
+        }
+
+        return token;
       }
 
       return token;
     },
 
     async session({ session, token }) {
-      const userId = (token as any).userId as string | undefined;
+      const userId = typeof token.userId === "string" ? token.userId : null;
 
-      if (session.user && userId) {
-        // Подтягиваем актуальные username/avatarUrl из БД (всегда свежие)
-        const dbUser = await db.query.users.findFirst({
-          where: eq(users.id, userId),
-        });
-
-        if (dbUser) {
-          (session.user as any).id = userId;
-          session.user.email = dbUser.email ?? session.user.email ?? null;
-          session.user.name = dbUser.username ?? session.user.name ?? null;
-          session.user.image = dbUser.avatarUrl ?? session.user.image ?? null;
-        } else {
-          // Fallback если пользователь не найден в БД
-          (session.user as any).id = userId;
-          session.user.email = (token.email as string | null) ?? null;
-        }
+      if (!session.user || !userId) {
+        return session;
       }
+
+      const dbUser = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: {
+          id: true,
+          email: true,
+          username: true,
+          avatarUrl: true,
+        },
+      });
+
+      session.user.id = userId;
+      session.user.email = dbUser?.email ?? (token.email as string | null) ?? null;
+      session.user.name = dbUser?.username ?? (token.name as string | null) ?? null;
+      session.user.image =
+        dbUser?.avatarUrl ?? (token.picture as string | null) ?? null;
 
       return session;
     },
@@ -172,22 +245,24 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === "development",
 };
 
-// ✅ handlers: добавляем Steam только если есть ключ
 function buildOptions(req: NextRequest): NextAuthOptions {
-  const opts: NextAuthOptions = { ...authOptions };
+  const options: NextAuthOptions = {
+    ...authOptions,
+    providers: [...(authOptions.providers ?? [])],
+  };
 
-  const steamKey = process.env.STEAM_SECRET;
-  if (steamKey && steamKey.trim().length > 0) {
-    opts.providers = [
-      ...(opts.providers ?? []),
-      Steam(req, { clientSecret: steamKey }),
-    ];
+  const steamSecret = process.env.STEAM_SECRET;
+  if (steamSecret && steamSecret.trim()) {
+    options.providers?.push(Steam(req, { clientSecret: steamSecret }));
   }
 
-  return opts;
+  return options;
 }
 
-async function handler(req: NextRequest, ctx: { params: { nextauth: string[] } }) {
+async function handler(
+  req: NextRequest,
+  ctx: { params: { nextauth: string[] } }
+) {
   return NextAuth(req, ctx, buildOptions(req));
 }
 

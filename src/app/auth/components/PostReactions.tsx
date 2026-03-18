@@ -17,14 +17,17 @@ export default function PostReactions(props: {
 
   async function react(type: "like" | "dislike") {
     if (loading) return;
+
     setLoading(true);
+
     try {
       const res = await fetch(`/api/posts/${encodeURIComponent(props.slug)}/reaction`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type }),
       });
-      const data = await res.json();
+
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) return;
 
       setLikeCount(Number(data.likeCount) || 0);
@@ -37,29 +40,25 @@ export default function PostReactions(props: {
   }
 
   return (
-    <div className="flex items-center gap-3 mt-6">
+    <div className="post-reactions">
       <button
         type="button"
         disabled={loading}
         onClick={() => react("like")}
-        className={[
-          "px-3 py-2 rounded-xl border text-sm",
-          likedByMe ? "bg-green-600/20 border-green-500" : "bg-white/5 border-white/10 hover:bg-white/10",
-        ].join(" ")}
+        className={`post-reaction-button ${likedByMe ? "active" : ""}`}
       >
-        👍 {likeCount}
+        <span>👍</span>
+        <span>{likeCount}</span>
       </button>
 
       <button
         type="button"
         disabled={loading}
         onClick={() => react("dislike")}
-        className={[
-          "px-3 py-2 rounded-xl border text-sm",
-          dislikedByMe ? "bg-red-600/20 border-red-500" : "bg-white/5 border-white/10 hover:bg-white/10",
-        ].join(" ")}
+        className={`post-reaction-button negative ${dislikedByMe ? "active" : ""}`}
       >
-        👎 {dislikeCount}
+        <span>👎</span>
+        <span>{dislikeCount}</span>
       </button>
     </div>
   );

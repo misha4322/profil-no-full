@@ -1,10 +1,10 @@
 import { Elysia, t } from "elysia";
 import bcrypt from "bcrypt";
-import { db } from "../db";
-import { users } from "../db/schema";
 import { eq } from "drizzle-orm";
 
-<<<<<<< HEAD
+import { db } from "../db";
+import { users } from "../db/schema";
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -14,26 +14,11 @@ function normalizeUsername(username: string) {
 }
 
 function isValidUsername(username: string) {
-  if (username.length < 3 || username.length > 32) return false;
-  return /^[\p{L}\p{N} _.-]+$/u.test(username);
-}
-
-function makeFriendCode() {
-  const a = Math.floor(1000 + Math.random() * 9000);
-  const b = Math.floor(1000 + Math.random() * 9000);
-  return `${a}-${b}`;
-}
-
-async function generateUniqueFriendCode(): Promise<string> {
-  while (true) {
-    const code = makeFriendCode();
-    const exists = await db.query.users.findFirst({
-      where: eq(users.friendCode, code),
-      columns: { id: true },
-    });
-
-    if (!exists) return code;
+  if (username.length < 3 || username.length > 32) {
+    return false;
   }
+
+  return /^[\p{L}\p{N} _.-]+$/u.test(username);
 }
 
 export const authRouter = new Elysia({ prefix: "/auth" })
@@ -62,7 +47,6 @@ export const authRouter = new Elysia({ prefix: "/auth" })
         email: user.email,
         username: user.username,
         avatarUrl: user.avatarUrl ?? null,
-        friendCode: user.friendCode ?? null,
       };
     },
     {
@@ -87,8 +71,7 @@ export const authRouter = new Elysia({ prefix: "/auth" })
       if (!isValidUsername(username)) {
         set.status = 400;
         return {
-          error:
-            "Ник: 3–32 символа. Можно буквы, цифры, пробел, _ - .",
+          error: "Ник: 3–32 символа. Можно буквы, цифры, пробел, _ - .",
         };
       }
 
@@ -118,7 +101,6 @@ export const authRouter = new Elysia({ prefix: "/auth" })
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
-      const friendCode = await generateUniqueFriendCode();
 
       const inserted = await db
         .insert(users)
@@ -127,14 +109,12 @@ export const authRouter = new Elysia({ prefix: "/auth" })
           username,
           passwordHash,
           provider: "local",
-          friendCode,
         })
         .returning({
           id: users.id,
           email: users.email,
           username: users.username,
           avatarUrl: users.avatarUrl,
-          friendCode: users.friendCode,
         });
 
       return {
@@ -150,61 +130,3 @@ export const authRouter = new Elysia({ prefix: "/auth" })
       }),
     }
   );
-=======
-export const authRouter = new Elysia({ prefix: "/auth" })
-
-  .post("/login", async ({ body, set }) => {
-    const user = await db.query.users.findFirst({
-      where: eq(users.email, body.email),
-    });
-
-    if (!user) {
-      set.status = 401;
-      return { error: "Invalid credentials" };
-    }
-
-    const ok = await bcrypt.compare(body.password, user.passwordHash);
-    if (!ok) {
-      set.status = 401;
-      return { error: "Invalid credentials" };
-    }
-
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-    };
-  }, {
-    body: t.Object({
-      email: t.String(),
-      password: t.String(),
-    }),
-  })
-
-  .post("/register", async ({ body, set }) => {
-    const exists = await db.query.users.findFirst({
-      where: eq(users.email, body.email),
-    });
-
-    if (exists) {
-      set.status = 400;
-      return { error: "User exists" };
-    }
-
-    const hash = await bcrypt.hash(body.password, 10);
-
-    await db.insert(users).values({
-      email: body.email,
-      username: body.username,
-      passwordHash: hash,
-    });
-
-    return { success: true };
-  }, {
-    body: t.Object({
-      email: t.String(),
-      username: t.String(),
-      password: t.String(),
-    }),
-  });
->>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
