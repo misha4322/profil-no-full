@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+<<<<<<< HEAD
 import Link from "next/link";
 import styles from "./SettingsClient.module.css";
 
@@ -40,11 +41,22 @@ export default function SettingsClient({ userId }: { userId: string }) {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+=======
+
+type MeResponse = {
+  user: { id: string; username: string; email: string | null; avatarUrl: string | null };
+};
+
+export default function SettingsClient() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+>>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState<string | null>(null);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+<<<<<<< HEAD
   const [profileBannerUrl, setProfileBannerUrl] = useState<string | null>(null);
 
   const [statusText, setStatusText] = useState("");
@@ -77,10 +89,19 @@ export default function SettingsClient({ userId }: { userId: string }) {
     () => bannerPreview ?? profileBannerUrl,
     [bannerPreview, profileBannerUrl]
   );
+=======
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const previewSrc = useMemo(() => localPreview ?? avatarUrl, [localPreview, avatarUrl]);
+
+  const [msg, setMsg] = useState<string | null>(null);
+>>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
 
   useEffect(() => {
     (async () => {
       try {
+<<<<<<< HEAD
         const res = await fetch(`/api/users/me/${userId}`, { cache: "no-store" });
         const json = await readJsonSafe(res);
 
@@ -108,10 +129,21 @@ export default function SettingsClient({ userId }: { userId: string }) {
         setFriendCode(user.friendCode ?? null);
       } catch (error: any) {
         setMessage(error?.message || "Ошибка загрузки");
+=======
+        const res = await fetch("/api/users/me", { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load profile");
+        const data: MeResponse = await res.json();
+        setUsername(data.user.username);
+        setEmail(data.user.email);
+        setAvatarUrl(data.user.avatarUrl);
+      } catch (e: any) {
+        setMsg(e?.message ?? "Ошибка загрузки профиля");
+>>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
       } finally {
         setLoading(false);
       }
     })();
+<<<<<<< HEAD
   }, [userId]);
 
   async function uploadSingle(file: File, setUploading: (v: boolean) => void) {
@@ -233,6 +265,54 @@ export default function SettingsClient({ userId }: { userId: string }) {
       setMessage("Профиль сохранён ✅");
     } catch (error: any) {
       setMessage(error?.message || "Ошибка сохранения");
+=======
+  }, []);
+
+  async function uploadAvatar() {
+    if (!selectedFile) return;
+
+    setMsg(null);
+    const form = new FormData();
+    form.append("file", selectedFile);
+
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const data = await res.json();
+
+    if (!res.ok) {
+      setMsg(data?.error ?? "Ошибка загрузки файла");
+      return;
+    }
+
+    const url = data?.urls?.[0] as string | undefined;
+    if (!url) {
+      setMsg("Upload: пустой ответ");
+      return;
+    }
+
+    setAvatarUrl(url);
+    setLocalPreview(null);
+    setSelectedFile(null);
+    setMsg("Аватар загружен. Не забудь нажать «Сохранить».");
+  }
+
+  async function save() {
+    setSaving(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/users/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, avatarUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data?.error ?? "Ошибка сохранения");
+        return;
+      }
+      setMsg("Сохранено ✅ (профиль обновится сразу)");
+    } catch (e: any) {
+      setMsg(e?.message ?? "Ошибка сохранения");
+>>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
     } finally {
       setSaving(false);
     }
@@ -240,13 +320,19 @@ export default function SettingsClient({ userId }: { userId: string }) {
 
   if (loading) {
     return (
+<<<<<<< HEAD
       <div className={styles.page}>
         <div className={styles.box}>Загрузка настроек...</div>
+=======
+      <div className="settings-wrap">
+        <div className="settings-card">Загрузка...</div>
+>>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
       </div>
     );
   }
 
   return (
+<<<<<<< HEAD
     <div className={styles.page}>
       <div className={styles.card}>
         <div className={styles.header}>
@@ -286,10 +372,41 @@ export default function SettingsClient({ userId }: { userId: string }) {
                   } else {
                     setBannerPreview(null);
                   }
+=======
+    <div className="settings-wrap">
+      <div className="settings-card">
+        <h1 className="settings-title">Настройки профиля</h1>
+
+        <div className="settings-row">
+          <div className="settings-avatar">
+            {previewSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={previewSrc} alt="avatar" className="avatar-img" />
+            ) : (
+              <div className="avatar-placeholder">
+                {(username?.[0] ?? "G").toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          <div className="settings-avatar-actions">
+            <label className="btn">
+              Выбрать фото
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setSelectedFile(f);
+                  setMsg(null);
+                  if (f) setLocalPreview(URL.createObjectURL(f));
+>>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
                 }}
               />
             </label>
 
+<<<<<<< HEAD
             <button
               type="button"
               className={styles.secondaryButton}
@@ -543,6 +660,45 @@ export default function SettingsClient({ userId }: { userId: string }) {
             {saving ? "Сохранение..." : "Сохранить изменения"}
           </button>
         </div>
+=======
+            <button className="btn btn-primary" onClick={uploadAvatar} disabled={!selectedFile}>
+              Загрузить
+            </button>
+
+            <button
+              className="btn btn-danger"
+              onClick={() => {
+                setAvatarUrl(null);
+                setLocalPreview(null);
+                setSelectedFile(null);
+                setMsg("Аватар сброшен. Нажми «Сохранить».");
+              }}
+            >
+              Удалить
+            </button>
+
+            <div className="hint">PNG/JPG/WEBP до 5MB</div>
+          </div>
+        </div>
+
+
+        <div className="field">
+          <div className="label">Никнейм</div>
+          <input
+            className="input"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Например: MishNef"
+          />
+          <div className="hint">3-32 символа, только a-z A-Z 0-9 _ -</div>
+        </div>
+
+        {msg && <div className="msg">{msg}</div>}
+
+        <button className="btn btn-save" onClick={save} disabled={saving}>
+          {saving ? "Сохранение..." : "Сохранить"}
+        </button>
+>>>>>>> e55ac280fb05062c9959b150f067539a31286f1d
       </div>
     </div>
   );
